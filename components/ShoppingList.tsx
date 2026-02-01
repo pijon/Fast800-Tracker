@@ -576,11 +576,11 @@ export const ShoppingList: React.FC = () => {
         ) : (
           <>
             <div className="flex justify-between items-center mb-4">
-              <h3 className="heading-4">Planned Meals ({availableMeals.length})</h3>
+              <h3 className="font-serif text-lg font-medium text-charcoal dark:text-stone-200">Planned Meals ({availableMeals.length})</h3>
               <div className="flex gap-2">
                 <button
                   onClick={() => handleSelectAll(true)}
-                  className="text-sm text-primary font-semibold hover:bg-primary/5 px-2 py-1 rounded transition-colors"
+                  className="text-sm text-hearth font-semibold hover:bg-hearth/5 px-2 py-1 rounded transition-colors"
                 >
                   Select All
                 </button>
@@ -610,15 +610,15 @@ export const ShoppingList: React.FC = () => {
                           className={`
                                         group flex items-center justify-between p-5 rounded-xl border cursor-pointer transition-all duration-200
                                         ${isSelected
-                              ? 'bg-primary/5 border-primary shadow-sm'
-                              : 'bg-white dark:bg-white/5 border-border hover:border-primary/50 hover:shadow-md'
+                              ? 'bg-hearth/5 border-hearth shadow-sm'
+                              : 'bg-white dark:bg-white/5 border-border hover:border-hearth/50 hover:shadow-md'
                             }
                                       `}
                         >
                           <div className="flex items-center gap-4">
                             <div className={`
                                               w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors
-                                              ${isSelected ? 'bg-primary border-primary' : 'border-muted group-hover:border-primary/50'}
+                                              ${isSelected ? 'bg-hearth border-hearth' : 'border-charcoal/20 dark:border-white/20 group-hover:border-hearth/50'}
                                           `}>
                               {isSelected && (
                                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-white">
@@ -628,7 +628,7 @@ export const ShoppingList: React.FC = () => {
                             </div>
 
                             <div>
-                              <div className={`font-medium text-lg ${isSelected ? 'text-primary' : 'text-charcoal dark:text-stone-200'}`}>
+                              <div className={`font-medium text-lg ${isSelected ? 'text-hearth' : 'text-charcoal dark:text-stone-200'}`}>
                                 {meal.name}
                                 {meal.isShared && (
                                   <span className="ml-2 px-2 py-0.5 rounded-full bg-hearth/10 text-hearth text-[10px] font-bold uppercase tracking-wide border border-hearth/20 whitespace-nowrap">
@@ -701,7 +701,7 @@ export const ShoppingList: React.FC = () => {
     return (
       <div className="space-y-8 pb-20 animate-fade-in">
         <div className="p-12 text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-border border-t-primary mb-4"></div>
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-border border-t-hearth mb-4"></div>
           <p className="text-charcoal/60 dark:text-stone-400 font-medium">{loadingMessage}</p>
         </div>
       </div>
@@ -712,13 +712,13 @@ export const ShoppingList: React.FC = () => {
   if (error) {
     return (
       <div className="space-y-8 pb-20 animate-fade-in">
-        <div className="p-8 text-center text-error bg-error-bg rounded-2xl border border-error-border">
+        <div className="p-8 text-center text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/10 rounded-2xl border border-red-200 dark:border-red-900/20">
           <div className="text-3xl mb-2">⚠️</div>
           <p className="font-medium mb-2">Error</p>
           <p className="text-sm">{error}</p>
           <button
             onClick={() => initializeShoppingList()}
-            className="btn-primary mt-4"
+            className="w-full py-2.5 rounded-xl bg-hearth text-white font-bold text-sm shadow-sm hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-4"
           >
             Try Again
           </button>
@@ -743,11 +743,11 @@ export const ShoppingList: React.FC = () => {
 
         <div className="grid grid-cols-2 gap-4 md:gap-6">
           <div className="card p-6 flex flex-col items-center text-center">
-            <div className="text-primary text-xs font-bold uppercase tracking-widest mb-2">In Pantry</div>
+            <div className="text-hearth text-xs font-bold uppercase tracking-widest mb-2">In Pantry</div>
             <div className="text-4xl font-serif text-charcoal dark:text-stone-200">{inPantryItems.length}</div>
           </div>
           <div className="card p-6 flex flex-col items-center text-center">
-            <div className="text-warning text-xs font-bold uppercase tracking-widest mb-2">Need to Buy</div>
+            <div className="text-flame text-xs font-bold uppercase tracking-widest mb-2">Need to Buy</div>
             <div className="text-4xl font-serif text-charcoal dark:text-stone-200">{needToBuyItems.length}</div>
           </div>
         </div>
@@ -775,7 +775,7 @@ export const ShoppingList: React.FC = () => {
           ) : (
             <button
               onClick={handleGenerateShoppingList}
-              className="px-10 py-4 bg-primary text-primary-foreground rounded-2xl transition-all text-lg font-semibold shadow-lg hover:shadow-xl hover:scale-105 active:scale-95"
+              className="px-10 py-4 bg-hearth text-white rounded-2xl transition-all text-lg font-semibold shadow-lg hover:shadow-xl hover:scale-105 active:scale-95"
             >
               Generate Shopping List ({needToBuyItems.length} items)
             </button>

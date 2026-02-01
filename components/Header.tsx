@@ -1,5 +1,6 @@
 import React from 'react';
 import { AppView } from '../types';
+import { Sparkles } from 'lucide-react';
 
 interface HeaderProps {
     title: string;
@@ -7,6 +8,8 @@ interface HeaderProps {
     isDarkMode: boolean;
     onToggleDarkMode: () => void;
     onNavigate: (view: AppView) => void;
+    showSundayReset?: boolean;
+    onOpenSundayReset?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -15,6 +18,8 @@ export const Header: React.FC<HeaderProps> = ({
     isDarkMode,
     onToggleDarkMode,
     onNavigate,
+    showSundayReset,
+    onOpenSundayReset,
 }) => {
     return (
         <div className="flex justify-between items-center mb-4">
@@ -25,6 +30,18 @@ export const Header: React.FC<HeaderProps> = ({
                 )}
             </div>
             <div className="flex gap-4 items-center">
+                {/* Sunday Reset (Conditional) */}
+                {showSundayReset && onOpenSundayReset && (
+                    <button
+                        onClick={onOpenSundayReset}
+                        className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-hearth/10 text-hearth hover:bg-hearth hover:text-white transition-all mr-2 text-sm font-bold shadow-sm"
+                        title="Start Sunday Reset"
+                    >
+                        <Sparkles size={14} />
+                        <span>Sunday Reset</span>
+                    </button>
+                )}
+
                 {/* Dark Mode Toggle */}
                 <button
                     onClick={onToggleDarkMode}

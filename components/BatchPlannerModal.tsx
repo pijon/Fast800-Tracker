@@ -416,11 +416,9 @@ const BatchPlannerModal: React.FC<BatchPlannerModalProps> = ({ isOpen, onClose, 
                     animate={{ y: 0, opacity: 1 }}
                     className="bg-[var(--background)] w-full max-w-md rounded-[2.5rem] shadow-2xl border border-[var(--border)] overflow-hidden relative"
                 >
-                    {step !== 'ignite' && step !== 'complete' && (
-                        <button onClick={handleClose} className="absolute top-4 right-4 text-[var(--text-muted)] hover:text-[var(--text-main)] z-50 p-2">
-                            <X size={24} />
-                        </button>
-                    )}
+                    <button onClick={handleClose} className="absolute top-4 right-4 text-[var(--text-muted)] hover:text-[var(--text-main)] z-50 p-2 rounded-full hover:bg-[var(--surface)] transition-colors">
+                        <X size={24} />
+                    </button>
 
                     {step === 'ignite' && renderIgnite()}
                     {step === 'config' && renderConfig()}

@@ -212,7 +212,7 @@ export const HydrationCard: React.FC<{ liters: number; onAddWater: (amount: numb
     );
 };
 
-export const WeightCard: React.FC<{ weight: number; change: number; history: WeightEntry[]; daysToGoal?: number | null; onAddWeight: () => void; size?: 'sm' | 'md' }> = ({ weight, change, history, daysToGoal, onAddWeight, size = 'md' }) => {
+export const WeightCard: React.FC<{ weight: number; change: number; history: WeightEntry[]; daysToGoal?: number | null; onAddWeight: () => void; onClick?: () => void; size?: 'sm' | 'md' }> = ({ weight, change, history, daysToGoal, onAddWeight, onClick, size = 'md' }) => {
     // Sort history by date ascending
     const sortedHistory = [...history].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
@@ -260,7 +260,10 @@ export const WeightCard: React.FC<{ weight: number; change: number; history: Wei
     }
 
     return (
-        <div className={`glass-card p-4 md:p-6 rounded-3xl ${size === 'sm' ? 'min-h-[160px]' : 'h-56'} group cursor-pointer hover:scale-[1.02] hover:shadow-lg dark:hover:border-white/20 transition-all duration-300 relative overflow-hidden`}>
+        <div
+            onClick={onClick}
+            className={`glass-card p-4 md:p-6 rounded-3xl ${size === 'sm' ? 'min-h-[160px]' : 'h-56'} group cursor-pointer hover:scale-[1.02] hover:shadow-lg dark:hover:border-white/20 transition-all duration-300 relative overflow-hidden`}
+        >
             <div className="relative z-10 flex justify-between items-start mb-2">
                 <h3 className="text-[10px] font-black text-charcoal/40 dark:text-stone-400 uppercase tracking-widest">Weight</h3>
                 <div className="flex gap-2 items-center">

@@ -49,12 +49,12 @@ const ShoppingItem: React.FC<ShoppingItemProps> = ({ item, recipes, onRemove, on
             exit={{ opacity: 0, scale: 0.95 }}
             whileHover={{ scale: 1.01 }}
             transition={{ duration: 0.2 }}
-            className={`group relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl card hover:shadow-md hover:border-primary/30 select-none ${isChecked ? 'opacity-60 bg-stone-100 dark:bg-white/5' : ''}`}
+            className={`group relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl card hover:shadow-md hover:border-hearth/30 select-none ${isChecked ? 'opacity-60 bg-stone-100 dark:bg-white/5' : ''}`}
         >
             <div className="flex items-center gap-3 flex-1 min-w-0 pr-2">
                 {/* Drag Handle */}
                 <div
-                    className="cursor-grab active:cursor-grabbing text-charcoal/30 hover:text-primary transition-colors p-1"
+                    className="cursor-grab active:cursor-grabbing text-charcoal/30 hover:text-hearth transition-colors p-1"
                     onPointerDown={(e) => dragControls.start(e)}
                 >
                     <Bars2Icon className="w-5 h-5" />
@@ -66,8 +66,8 @@ const ShoppingItem: React.FC<ShoppingItemProps> = ({ item, recipes, onRemove, on
                     className={`
                         w-6 h-6 rounded-full border-2 flex items-center justify-center cursor-pointer transition-all flex-shrink-0
                         ${isChecked
-                            ? 'bg-secondary border-secondary text-white'
-                            : 'border-border hover:border-secondary'
+                            ? 'bg-sage border-sage text-white'
+                            : 'border-border hover:border-sage'
                         }
                     `}
                 >
@@ -88,12 +88,12 @@ const ShoppingItem: React.FC<ShoppingItemProps> = ({ item, recipes, onRemove, on
                                 onChange={(e) => setEditValue(e.target.value)}
                                 onBlur={submitEdit}
                                 onKeyDown={(e) => e.key === 'Enter' && submitEdit()}
-                                className="bg-white dark:bg-white/5 border border-border rounded-lg px-2 py-1 text-lg font-bold text-primary min-w-[60px] max-w-[120px] focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                                className="bg-white dark:bg-white/5 border border-border rounded-lg px-2 py-1 text-lg font-bold text-hearth min-w-[60px] max-w-[120px] focus:outline-none focus:ring-2 focus:ring-hearth/20 transition-all"
                             />
                         ) : (
                             <span
                                 onClick={startEditing}
-                                className={`text-lg font-bold text-primary whitespace-nowrap decoration-dashed decoration-primary/30 underline-offset-4 ${onUpdate ? 'cursor-pointer hover:underline' : ''} ${isChecked ? 'line-through opacity-70' : ''}`}
+                                className={`text-lg font-bold text-hearth whitespace-nowrap decoration-dashed decoration-hearth/30 underline-offset-4 ${onUpdate ? 'cursor-pointer hover:underline' : ''} ${isChecked ? 'line-through opacity-70' : ''}`}
                                 title={onUpdate ? "Click to edit quantity" : undefined}
                             >
                                 {item.purchasableQuantity || item.requiredQuantity}
@@ -104,7 +104,7 @@ const ShoppingItem: React.FC<ShoppingItemProps> = ({ item, recipes, onRemove, on
                         </span>
 
                         {(recipes && recipes.length > 0) && (
-                            <span className="text-xs text-primary/70 font-medium ml-2">
+                            <span className="text-xs text-hearth/70 font-medium ml-2">
                                 for {recipes.join(', ')}
                             </span>
                         )}
@@ -116,11 +116,11 @@ const ShoppingItem: React.FC<ShoppingItemProps> = ({ item, recipes, onRemove, on
             <div className="flex items-center gap-1 w-full sm:w-auto justify-end">
                 <button
                     onClick={handleCopy}
-                    className="p-2 rounded-lg text-charcoal/60 dark:text-stone-400 hover:text-primary hover:bg-primary/10 transition-colors"
+                    className="p-2 rounded-lg text-charcoal/60 dark:text-stone-400 hover:text-hearth hover:bg-hearth/10 transition-colors"
                     title="Copy to clipboard"
                 >
                     {copied ? (
-                        <ClipboardDocumentCheckIcon className="w-5 h-5 text-primary" />
+                        <ClipboardDocumentCheckIcon className="w-5 h-5 text-hearth" />
                     ) : (
                         <ClipboardDocumentIcon className="w-5 h-5" />
                     )}
@@ -128,7 +128,7 @@ const ShoppingItem: React.FC<ShoppingItemProps> = ({ item, recipes, onRemove, on
 
                 <button
                     onClick={onRemove}
-                    className="p-2 rounded-lg text-charcoal/60 dark:text-stone-400 hover:text-error hover:bg-error/10 transition-colors"
+                    className="p-2 rounded-lg text-charcoal/60 dark:text-stone-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors"
                     title="Remove item"
                 >
                     <TrashIcon className="w-5 h-5" />

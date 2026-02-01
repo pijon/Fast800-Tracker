@@ -17,7 +17,7 @@ export const IngredientReviewCard: React.FC<IngredientReviewCardProps> = ({
   return (
     <div
       className={`card p-4 transition-all ${inPantry
-        ? 'ring-1 ring-primary/20 bg-primary/5'
+        ? 'ring-1 ring-sage/20 bg-sage/5'
         : 'hover:shadow-md'
         }`}
     >
@@ -33,9 +33,9 @@ export const IngredientReviewCard: React.FC<IngredientReviewCardProps> = ({
 
         <button
           onClick={() => onTogglePantry(ingredient.name, !inPantry)}
-          className={`btn-sm transition-all ${inPantry
-            ? 'btn-primary'
-            : 'btn-secondary text-charcoal/60 dark:text-stone-400'
+          className={`btn-sm transition-all rounded-lg font-bold ${inPantry
+            ? 'bg-sage text-white shadow-sm'
+            : 'bg-white dark:bg-white/5 border border-border text-charcoal/60 dark:text-stone-400 hover:border-charcoal/20 dark:hover:border-white/20'
             }`}
         >
           {inPantry ? '✓ Have This' : 'Need to Buy'}
@@ -46,7 +46,7 @@ export const IngredientReviewCard: React.FC<IngredientReviewCardProps> = ({
         <div className="mt-2">
           <button
             onClick={() => setShowRecipes(!showRecipes)}
-            className="text-xs text-primary hover:text-primary-dark font-medium"
+            className="text-xs text-charcoal/60 dark:text-stone-400 hover:text-hearth font-medium flex items-center gap-1"
           >
             {showRecipes ? '▼' : '▶'} Used in {ingredient.recipes.length} recipes
           </button>
@@ -56,7 +56,7 @@ export const IngredientReviewCard: React.FC<IngredientReviewCardProps> = ({
               {ingredient.recipes.map((recipe) => (
                 <div
                   key={recipe.id}
-                  className="text-xs text-charcoal/60 dark:text-stone-400 pl-3 border-l-2 border-primary/20"
+                  className="text-xs text-charcoal/60 dark:text-stone-400 pl-3 border-l-2 border-hearth/20"
                 >
                   {recipe.name}: {recipe.quantity} {ingredient.unit}
                 </div>

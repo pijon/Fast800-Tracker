@@ -448,7 +448,6 @@ const TrackerApp: React.FC = () => {
             setIsWorkoutModalOpen(true);
         },
         onOpenWeightModal: () => setIsWeightModalOpen(true),
-        onOpenSundayReset: () => setIsSundayResetOpen(true),
         onAddWater: handleAddWater, // Direct action
     };
 
@@ -502,6 +501,8 @@ const TrackerApp: React.FC = () => {
                             isDarkMode={isDarkMode}
                             onToggleDarkMode={toggleDarkMode}
                             onNavigate={handleNavigate}
+                            showSundayReset={new Date().getDay() === 0}
+                            onOpenSundayReset={() => setIsSundayResetOpen(true)}
                         />
                     </div>
                     <React.Suspense fallback={<ViewSkeleton />}>
