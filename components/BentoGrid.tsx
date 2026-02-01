@@ -5,20 +5,16 @@ import { StreakFlame } from './StreakFlame';
 
 // --- Sub-components for Bento Grid ---
 
-export const ActivityCard: React.FC<{ caloriesBurned: number; workoutsCompleted: number; workoutsGoal: number; history?: DailySummary[]; onAddWorkout: () => void; size?: 'sm' | 'md' }> = ({
-    caloriesBurned, workoutsCompleted, workoutsGoal, history = [], onAddWorkout, size = 'md'
+export const ActivityCard: React.FC<{ caloriesBurned: number; workoutsCompleted: number; workoutsGoal: number; history?: DailySummary[]; onAddWorkout: () => void; size?: 'sm' | 'md'; streak?: number }> = ({
+    caloriesBurned, workoutsCompleted, workoutsGoal, history = [], onAddWorkout, size = 'md', streak = 0
 }) => {
-    // Calculate Streak (Mock or from props if available - reusing history for now to infer simple streak)
-    // Ideally this comes from stats, but for this widget we might need to pass it down.
-    // For now, I'll infer "active today" based on caloriesBurned > 0.
-    const isActive = caloriesBurned > 0;
+    // Calculate Streak (Uses prop now)
+    const currentStreak = streak;
 
-    // We'll calculate a simple streak from history for display, or default to 0 if not provided
-    // In a real app, 'streak' should be a prop. I'll assume 3 for demo or calculate from history.
-    let currentStreak = 0;
-    const sortedHistory = [...history].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    // Simple mock logic for visualization if prop missing
-    currentStreak = sortedHistory.length > 0 ? sortedHistory.length : 0;
+    // Inactive if 0 streak AND no activity today? 
+    // Actually, design usually highlights if "Active Today".
+    // Let's keep "Active Today" logic separate from streak.
+    const isActive = caloriesBurned > 0;
 
     // Design System Tokens
     const TrophyClass = isActive ? "text-flame drop-shadow-md" : "text-charcoal/10 dark:text-white/5";

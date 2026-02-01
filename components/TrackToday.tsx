@@ -13,7 +13,7 @@ import { ActivityCard, FastingCard, HydrationCard, WeightCard, CaloriesRemaining
 const RecipeLibrary = React.lazy(() => import('./RecipeLibrary').then(module => ({ default: module.RecipeLibrary })));
 import { Portal } from './Portal';
 import { useAchievements } from '../hooks/useAchievements';
-import { analyzeWeightTrends } from '../utils/analytics';
+import { analyzeWeightTrends, analyzeActivityStreaks } from '../utils/analytics';
 
 import { saveUserStats } from '../services/storageService';
 
@@ -252,6 +252,7 @@ export const TrackToday: React.FC<TrackTodayProps> = ({
           history={activityHistory}
           onAddWorkout={() => onOpenWorkoutModal()}
           size="sm"
+          streak={analyzeActivityStreaks(activityHistory).currentStreak}
         />
         <HydrationCard
           liters={(dailyLog.waterIntake || 0) / 1000}
@@ -313,6 +314,7 @@ export const TrackToday: React.FC<TrackTodayProps> = ({
               workoutsGoal={stats.dailyWorkoutCountGoal || 1}
               history={activityHistory}
               onAddWorkout={() => onOpenWorkoutModal()}
+              streak={analyzeActivityStreaks(activityHistory).currentStreak}
             />
             <div className="grid grid-cols-2 gap-4">
               <CaloriesRemainingCard
