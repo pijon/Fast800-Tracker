@@ -21,6 +21,7 @@ export interface Recipe {
   originalRecipeId?: string; // Reference to the original library recipe for hydration
   isLeftover?: boolean; // If true, this is a leftover from a previous meal
   isPacked?: boolean;   // If true, this is a packed lunch/meal
+  sides?: Recipe[];     // Nested side dishes associated with this meal
 }
 
 export type Meal = Recipe;

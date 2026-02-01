@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { getWeeklyPlan, saveDayPlan, getRecipes, getDayPlan, getUpcomingPlan, getDayPlansInRange, getFamilyPlansInRange } from '../services/storageService';
+import { suggestSideDishes } from '../services/geminiService';
 
 import { Recipe, DayPlan } from '../types';
 
@@ -23,11 +24,16 @@ export const Planner: React.FC<{ stats: UserStats; onPlanChanged?: () => void }>
 
 
     // Modal UI State
-    const [modalTab, setModalTab] = useState<'library' | 'custom' | 'leftovers'>('library');
+    // Modal UI State
+    const [modalTab, setModalTab] = useState<'library' | 'custom' | 'leftovers' | 'suggestions'>('library');
     const [leftoverCandidates, setLeftoverCandidates] = useState<{ date: string; recipe: Recipe }[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [activeFilter, setActiveFilter] = useState<'all' | 'breakfast' | 'main meal' | 'snack' | 'light meal'>('all');
     const [maxCalories, setMaxCalories] = useState<string>('');
+
+    // AI Suggestions State
+    const [suggestedSides, setSuggestedSides] = useState<Recipe[]>([]);
+    const [isSuggesting, setIsSuggesting] = useState(false);
 
     // Custom Meal Form State
     const [customName, setCustomName] = useState('');
@@ -44,6 +50,7 @@ export const Planner: React.FC<{ stats: UserStats; onPlanChanged?: () => void }>
     const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
 
     const [swapIndex, setSwapIndex] = useState<number | null>(null);
+    const [targetMealIndex, setTargetMealIndex] = useState<number | null>(null); // For adding sides
     const [showBatchPlanner, setShowBatchPlanner] = useState(false);
 
     useEffect(() => {
@@ -103,7 +110,20 @@ export const Planner: React.FC<{ stats: UserStats; onPlanChanged?: () => void }>
             cookingServings: servingsOverride !== undefined ? servingsOverride : recipe.cookingServings
         };
 
-        if (swapIndex !== null && swapIndex >= 0 && swapIndex < newMeals.length) {
+        if (targetMealIndex !== null && targetMealIndex >= 0 && targetMealIndex < newMeals.length) {
+            // Adding a Side Dish
+            const parentMeal = { ...newMeals[targetMealIndex] };
+            const currentSides = parentMeal.sides ? [...parentMeal.sides] : [];
+
+            // Tag as side dish if not already
+            if (!mealToAdd.tags.includes('side dish')) {
+                mealToAdd.tags = [...mealToAdd.tags, 'side dish'];
+            }
+
+            currentSides.push(mealToAdd);
+            parentMeal.sides = currentSides;
+            newMeals[targetMealIndex] = parentMeal;
+        } else if (swapIndex !== null && swapIndex >= 0 && swapIndex < newMeals.length) {
             // Swap existing meal
             newMeals[swapIndex] = mealToAdd;
         } else {
@@ -111,8 +131,15 @@ export const Planner: React.FC<{ stats: UserStats; onPlanChanged?: () => void }>
             newMeals.push(mealToAdd);
         }
 
-        // Recalculate total calories
-        const totalCals = newMeals.reduce((acc, m) => acc + m.calories, 0);
+        // Recalculate total calories (recursive)
+        const calculateTotalCalories = (meals: Recipe[]) => {
+            return meals.reduce((acc, meal) => {
+                const sidesCalories = meal.sides?.reduce((sAcc, s) => sAcc + s.calories, 0) || 0;
+                return acc + meal.calories + sidesCalories;
+            }, 0);
+        };
+
+        const totalCals = calculateTotalCalories(newMeals);
 
         const updatedPlan = { ...dayPlan, meals: newMeals, totalCalories: totalCals };
         saveDayPlan(updatedPlan);
@@ -151,12 +178,46 @@ export const Planner: React.FC<{ stats: UserStats; onPlanChanged?: () => void }>
         const newMeals = [...dayPlan.meals];
         newMeals.splice(index, 1);
 
-        const totalCals = newMeals.reduce((acc, m) => acc + m.calories, 0);
+        const calculateTotalCalories = (meals: Recipe[]) => {
+            return meals.reduce((acc, meal) => {
+                const sidesCalories = meal.sides?.reduce((sAcc, s) => sAcc + s.calories, 0) || 0;
+                return acc + meal.calories + sidesCalories;
+            }, 0);
+        };
+
+        const totalCals = calculateTotalCalories(newMeals);
 
         const updatedPlan = { ...dayPlan, meals: newMeals, totalCalories: totalCals };
         saveDayPlan(updatedPlan);
         setDayPlan(updatedPlan);
         onPlanChanged?.();
+    };
+
+    const removeSide = async (parentIndex: number, sideIndex: number) => {
+        if (!dayPlan) return;
+        const newMeals = [...dayPlan.meals];
+        const parentMeal = { ...newMeals[parentIndex] };
+
+        if (parentMeal.sides) {
+            const newSides = [...parentMeal.sides];
+            newSides.splice(sideIndex, 1);
+            parentMeal.sides = newSides;
+            newMeals[parentIndex] = parentMeal;
+
+            const calculateTotalCalories = (meals: Recipe[]) => {
+                return meals.reduce((acc, meal) => {
+                    const sidesCalories = meal.sides?.reduce((sAcc, s) => sAcc + s.calories, 0) || 0;
+                    return acc + meal.calories + sidesCalories;
+                }, 0);
+            };
+
+            const totalCals = calculateTotalCalories(newMeals);
+            const updatedPlan = { ...dayPlan, meals: newMeals, totalCalories: totalCals };
+
+            saveDayPlan(updatedPlan);
+            setDayPlan(updatedPlan);
+            onPlanChanged?.();
+        }
     };
 
     const togglePacked = async (index: number) => {
@@ -173,6 +234,9 @@ export const Planner: React.FC<{ stats: UserStats; onPlanChanged?: () => void }>
 
     const openAddModal = () => {
         setSwapIndex(null);
+        setTargetMealIndex(null);
+        resetModalState();
+        setShowAddModal(true);
         resetModalState();
         setShowAddModal(true);
 
@@ -207,7 +271,17 @@ export const Planner: React.FC<{ stats: UserStats; onPlanChanged?: () => void }>
 
     const openSwapModal = (index: number) => {
         setSwapIndex(index);
+        setTargetMealIndex(null);
         resetModalState();
+        setShowAddModal(true);
+    };
+
+    const openAddSideModal = (index: number) => {
+        setTargetMealIndex(index);
+        setSwapIndex(null);
+        resetModalState();
+        setModalTab('library'); // Default to library for sides
+        setActiveFilter('all'); // Or maybe 'snack'/'light meal'?
         setShowAddModal(true);
     };
 
@@ -218,12 +292,32 @@ export const Planner: React.FC<{ stats: UserStats; onPlanChanged?: () => void }>
         setMaxCalories('');
         setCustomName('');
         setCustomCalories('');
+        setCustomName('');
+        setCustomCalories('');
         setCustomType('main meal');
+        setSuggestedSides([]);
+        setIsSuggesting(false);
     };
 
     const closeModal = () => {
         setShowAddModal(false);
         setSwapIndex(null);
+        setTargetMealIndex(null);
+    };
+
+    const handleSuggestSides = async () => {
+        if (targetMealIndex === null || !dayPlan) return;
+
+        setIsSuggesting(true);
+        try {
+            const mainMeal = dayPlan.meals[targetMealIndex];
+            const sides = await suggestSideDishes(mainMeal.name, mainMeal.calories);
+            setSuggestedSides(sides);
+        } catch (error) {
+            console.error("Failed to suggest sides", error);
+        } finally {
+            setIsSuggesting(false);
+        }
     };
 
 
@@ -407,98 +501,148 @@ export const Planner: React.FC<{ stats: UserStats; onPlanChanged?: () => void }>
                                 dayPlan.meals.map((meal, index) => (
                                     <div key={index}
                                         onClick={() => setSelectedRecipe(meal)}
-                                        className="group relative bg-charcoal/5 dark:bg-white/5 hover:bg-charcoal/10 dark:hover:bg-white/10 rounded-3xl p-3 md:p-6 transition-all duration-300 shadow-sm hover:shadow-md border border-charcoal/5 dark:border-white/5 flex gap-3 md:gap-6 items-stretch cursor-pointer"
+                                        className="group relative bg-charcoal/5 dark:bg-white/5 hover:bg-charcoal/10 dark:hover:bg-white/10 rounded-3xl p-3 md:p-6 transition-all duration-300 shadow-sm hover:shadow-md border border-charcoal/5 dark:border-white/5 flex flex-col gap-4 cursor-pointer"
                                     >
-                                        {/* Image */}
-                                        <div className="w-16 h-16 md:w-28 md:h-28 rounded-2xl overflow-hidden shadow-sm flex-shrink-0 bg-stone dark:bg-stone-800">
-                                            {meal.image ? (
-                                                <img src={meal.image} alt={meal.name} className="w-full h-full object-cover" />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-xl md:text-3xl font-serif text-charcoal/20 dark:text-white/20">
-                                                    {(meal.name || 'M').charAt(0)}
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        {/* Info & Actions Container */}
-                                        <div className="flex-1 min-w-0 flex flex-col justify-between">
-                                            {/* Top: Title */}
-                                            <div className="flex justify-between items-start">
-                                                <h3 className="text-lg md:text-xl font-serif text-charcoal dark:text-stone-200 line-clamp-2 leading-tight">{meal.name}</h3>
-                                                {meal.isShared && (
-                                                    <span className="ml-2 px-1.5 py-0.5 md:px-2 rounded-full bg-hearth/10 text-hearth dark:bg-hearth/20 dark:text-hearth-light text-[9px] md:text-[10px] font-bold uppercase tracking-wide border border-hearth/20 whitespace-nowrap">
-                                                        {meal.ownerName?.split(' ')[0] || 'Partner'}
-                                                    </span>
+                                        <div className="flex gap-3 md:gap-6 items-stretch">
+                                            {/* Image */}
+                                            <div className="w-16 h-16 md:w-28 md:h-28 rounded-2xl overflow-hidden shadow-sm flex-shrink-0 bg-stone dark:bg-stone-800">
+                                                {meal.image ? (
+                                                    <img src={meal.image} alt={meal.name} className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center text-xl md:text-3xl font-serif text-charcoal/20 dark:text-white/20">
+                                                        {(meal.name || 'M').charAt(0)}
+                                                    </div>
                                                 )}
                                             </div>
 
-                                            {/* Bottom: Metadata & Actions */}
-                                            <div className="flex justify-between items-end mt-1 gap-2">
-                                                <div className="flex flex-wrap gap-2">
-                                                    <span className="text-xs font-bold text-charcoal/40 dark:text-stone-400 flex items-center gap-1">
-                                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
-                                                        {(meal.tags?.[0] || 'meal').toLowerCase()}
-                                                    </span>
-                                                    <span className="text-xs font-bold text-charcoal/40 dark:text-stone-400 flex items-center gap-1">
-                                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" /></svg>
-                                                        {meal.calories}
-                                                    </span>
-                                                    <span className="text-xs font-bold text-charcoal/40 dark:text-stone-400 flex items-center gap-1">
-                                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                                        {meal.prepTime || 15}m
-                                                    </span>
-                                                    {meal.isLeftover && (
-                                                        <span className="text-xs font-bold text-stone-500 dark:text-stone-400 flex items-center gap-1" title="Leftover from previous day">
-                                                            <span className="text-[10px]">♻️</span>
-                                                        </span>
-                                                    )}
-                                                    {meal.isPacked && (
-                                                        <span className="text-xs font-bold text-charcoal/40 dark:text-stone-400 flex items-center gap-1" title="Packed Lunch">
-                                                            <svg width="12" height="12" viewBox="0 -0.5 17 17" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                                                                <g transform="translate(1.000000, 2.000000)">
-                                                                    <rect x="0" y="0" width="16" height="2" />
-                                                                    <path d="M1,10 C1,11.105 1.896,12 3,12 L13,12 C14.105,12 15,11.105 15,10 L15,3 L1,3 L1,10 L1,10 Z M5.98,4.959 L10.062,4.959 L10.062,6.063 L5.98,6.063 L5.98,4.959 L5.98,4.959 Z" />
-                                                                </g>
-                                                            </svg>
+                                            {/* Info & Actions Container */}
+                                            <div className="flex-1 min-w-0 flex flex-col justify-between">
+                                                {/* Top: Title */}
+                                                <div className="flex justify-between items-start">
+                                                    <h3 className="text-lg md:text-xl font-serif text-charcoal dark:text-stone-200 line-clamp-2 leading-tight">{meal.name}</h3>
+                                                    {meal.isShared && (
+                                                        <span className="ml-2 px-1.5 py-0.5 md:px-2 rounded-full bg-hearth/10 text-hearth dark:bg-hearth/20 dark:text-hearth-light text-[9px] md:text-[10px] font-bold uppercase tracking-wide border border-hearth/20 whitespace-nowrap">
+                                                            {meal.ownerName?.split(' ')[0] || 'Partner'}
                                                         </span>
                                                     )}
                                                 </div>
 
-                                                {/* Actions (Bottom Right) */}
-                                                <div className="flex gap-2 flex-shrink-0">
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); setCookingModeRecipe(meal); }}
-                                                        className="w-8 h-8 md:w-11 md:h-11 rounded-full bg-hearth/10 dark:bg-white/5 text-hearth dark:text-stone-300 flex items-center justify-center hover:bg-hearth hover:text-white dark:hover:bg-hearth dark:hover:text-white transition-all shadow-sm"
-                                                        title="Start Cooking Mode"
-                                                    >
-                                                        <svg className="w-3.5 h-3.5 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                                    </button>
-
-                                                    {!meal.isShared && (
-                                                        <>
-                                                            <button
-                                                                onClick={(e) => { e.stopPropagation(); togglePacked(index); }}
-                                                                className={`w-8 h-8 md:w-11 md:h-11 rounded-full flex items-center justify-center transition-all shadow-sm ${meal.isPacked ? 'bg-[var(--color-ocean)]/10 text-[var(--color-ocean)] dark:bg-[var(--color-ocean)]/20' : 'bg-charcoal/5 dark:bg-white/5 text-charcoal/40 dark:text-stone-400 hover:bg-[var(--color-ocean)]/10 hover:text-[var(--color-ocean)]'} `}
-                                                                title="Toggle Packed Lunch"
-                                                            >
-                                                                <svg width="14" height="14" viewBox="0 -0.5 17 17" fill="currentColor" xmlns="http://www.w3.org/2000/svg" className="md:w-[18px] md:h-[18px]">
+                                                {/* Bottom: Metadata & Actions */}
+                                                <div className="flex justify-between items-end mt-1 gap-2">
+                                                    <div className="flex flex-wrap gap-2">
+                                                        <span className="text-xs font-bold text-charcoal/40 dark:text-stone-400 flex items-center gap-1">
+                                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                                                            {(meal.tags?.[0] || 'meal').toLowerCase()}
+                                                        </span>
+                                                        <span className="text-xs font-bold text-charcoal/40 dark:text-stone-400 flex items-center gap-1">
+                                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" /></svg>
+                                                            {meal.calories}
+                                                        </span>
+                                                        <span className="text-xs font-bold text-charcoal/40 dark:text-stone-400 flex items-center gap-1">
+                                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                                            {meal.prepTime || 15}m
+                                                        </span>
+                                                        {meal.isLeftover && (
+                                                            <span className="text-xs font-bold text-stone-500 dark:text-stone-400 flex items-center gap-1" title="Leftover from previous day">
+                                                                <span className="text-[10px]">♻️</span>
+                                                            </span>
+                                                        )}
+                                                        {meal.isPacked && (
+                                                            <span className="text-xs font-bold text-charcoal/40 dark:text-stone-400 flex items-center gap-1" title="Packed Lunch">
+                                                                <svg width="12" height="12" viewBox="0 -0.5 17 17" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
                                                                     <g transform="translate(1.000000, 2.000000)">
                                                                         <rect x="0" y="0" width="16" height="2" />
                                                                         <path d="M1,10 C1,11.105 1.896,12 3,12 L13,12 C14.105,12 15,11.105 15,10 L15,3 L1,3 L1,10 L1,10 Z M5.98,4.959 L10.062,4.959 L10.062,6.063 L5.98,6.063 L5.98,4.959 L5.98,4.959 Z" />
                                                                     </g>
                                                                 </svg>
-                                                            </button>
-                                                            <button
-                                                                onClick={(e) => { e.stopPropagation(); removeMeal(index); }}
-                                                                className="w-8 h-8 md:w-11 md:h-11 rounded-full bg-charcoal/5 dark:bg-white/5 text-charcoal/40 dark:text-stone-400 flex items-center justify-center hover:bg-hearth/10 hover:text-hearth dark:hover:bg-hearth/20 dark:hover:text-hearth-light transition-colors"
-                                                            >
-                                                                <svg className="w-3.5 h-3.5 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                                                            </button>
-                                                        </>
-                                                    )}
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Actions (Bottom Right) */}
+                                                    <div className="flex gap-2 flex-shrink-0">
+                                                        {/* ADD SIDE BUTTON */}
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); openAddSideModal(index); }}
+                                                            className="px-2 h-8 md:h-11 rounded-full bg-charcoal/5 dark:bg-white/5 text-charcoal/60 dark:text-stone-400 flex items-center justify-center hover:bg-hearth/10 hover:text-hearth dark:hover:bg-hearth/20 dark:hover:text-hearth-light transition-colors text-[10px] font-bold uppercase tracking-wider gap-1"
+                                                            title="Add Side Dish"
+                                                        >
+                                                            <span>+ Side</span>
+                                                        </button>
+
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); setCookingModeRecipe(meal); }}
+                                                            className="w-8 h-8 md:w-11 md:h-11 rounded-full bg-hearth/10 dark:bg-white/5 text-hearth dark:text-stone-300 flex items-center justify-center hover:bg-hearth hover:text-white dark:hover:bg-hearth dark:hover:text-white transition-all shadow-sm"
+                                                            title="Start Cooking Mode"
+                                                        >
+                                                            <svg className="w-3.5 h-3.5 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                                        </button>
+
+                                                        {!meal.isShared && (
+                                                            <>
+                                                                <button
+                                                                    onClick={(e) => { e.stopPropagation(); togglePacked(index); }}
+                                                                    className={`w-8 h-8 md:w-11 md:h-11 rounded-full flex items-center justify-center transition-all shadow-sm ${meal.isPacked ? 'bg-[var(--color-ocean)]/10 text-[var(--color-ocean)] dark:bg-[var(--color-ocean)]/20' : 'bg-charcoal/5 dark:bg-white/5 text-charcoal/40 dark:text-stone-400 hover:bg-[var(--color-ocean)]/10 hover:text-[var(--color-ocean)]'} `}
+                                                                    title="Toggle Packed Lunch"
+                                                                >
+                                                                    <svg width="14" height="14" viewBox="0 -0.5 17 17" fill="currentColor" xmlns="http://www.w3.org/2000/svg" className="md:w-[18px] md:h-[18px]">
+                                                                        <g transform="translate(1.000000, 2.000000)">
+                                                                            <rect x="0" y="0" width="16" height="2" />
+                                                                            <path d="M1,10 C1,11.105 1.896,12 3,12 L13,12 C14.105,12 15,11.105 15,10 L15,3 L1,3 L1,10 L1,10 Z M5.98,4.959 L10.062,4.959 L10.062,6.063 L5.98,6.063 L5.98,4.959 L5.98,4.959 Z" />
+                                                                        </g>
+                                                                    </svg>
+                                                                </button>
+                                                                <button
+                                                                    onClick={(e) => { e.stopPropagation(); removeMeal(index); }}
+                                                                    className="w-8 h-8 md:w-11 md:h-11 rounded-full bg-charcoal/5 dark:bg-white/5 text-charcoal/40 dark:text-stone-400 flex items-center justify-center hover:bg-hearth/10 hover:text-hearth dark:hover:bg-hearth/20 dark:hover:text-hearth-light transition-colors"
+                                                                >
+                                                                    <svg className="w-3.5 h-3.5 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                                                </button>
+                                                            </>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
+
+                                        {/* RENDER SIDES */}
+                                        {meal.sides && meal.sides.length > 0 && (
+                                            <div className="mt-2 space-y-2 border-t border-charcoal/5 dark:border-white/5 pt-3">
+                                                {meal.sides.map((side, sideIdx) => (
+                                                    <div key={side.id || sideIdx} className="flex items-center gap-3 pl-4 relative group/side">
+                                                        <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-charcoal/10 dark:bg-white/10 rounded-full" />
+
+                                                        {/* Side Image/Icon */}
+                                                        <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-stone dark:bg-stone-800">
+                                                            {side.image ? (
+                                                                <img src={side.image} alt={side.name} className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                <div className="w-full h-full flex items-center justify-center text-xs font-bold text-charcoal/20 dark:text-white/20">
+                                                                    {(side.name || 'S').charAt(0)}
+                                                                </div>
+                                                            )}
+                                                        </div>
+
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex justify-between items-center">
+                                                                <h5 className="font-serif text-charcoal dark:text-stone-300 text-sm leading-tight">{side.name}</h5>
+                                                                <button
+                                                                    onClick={(e) => { e.stopPropagation(); removeSide(index, sideIdx); }}
+                                                                    className="opacity-0 group-hover/side:opacity-100 p-1.5 text-charcoal/40 hover:text-hearth transition-all"
+                                                                >
+                                                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                                                </button>
+                                                            </div>
+                                                            <div className="flex items-center gap-2 text-[10px] text-charcoal/40 dark:text-stone-500 font-bold uppercase tracking-wide">
+                                                                <span>Side</span>
+                                                                <span>•</span>
+                                                                <span>{side.calories} kcal</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
                                 ))
                             )}
@@ -538,8 +682,12 @@ export const Planner: React.FC<{ stats: UserStats; onPlanChanged?: () => void }>
                                 {/* Header */}
                                 <div className="p-6 border-b border-border flex justify-between items-center bg-transparent rounded-t-3xl">
                                     <div>
-                                        <h3 className="font-normal text-3xl text-[var(--text-main)] font-serif">{swapIndex !== null ? 'Swap Meal' : 'Add Meal'}</h3>
-                                        <p className="text-sm text-[var(--text-secondary)] font-medium mt-1">Select from library or add a quick entry</p>
+                                        <h3 className="font-normal text-3xl text-[var(--text-main)] font-serif">
+                                            {swapIndex !== null ? 'Swap Meal' : targetMealIndex !== null ? 'Add Side Dish' : 'Add Meal'}
+                                        </h3>
+                                        <p className="text-sm text-[var(--text-secondary)] font-medium mt-1">
+                                            {targetMealIndex !== null ? 'Select a side dish to accompany your meal' : 'Select from library or add a quick entry'}
+                                        </p>
                                     </div>
                                     <button onClick={closeModal} className="p-2 bg-[var(--input-bg)] hover:bg-[var(--border)] rounded-full transition-colors text-[var(--text-secondary)] hover:text-[var(--text-main)]">
                                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
@@ -566,9 +714,82 @@ export const Planner: React.FC<{ stats: UserStats; onPlanChanged?: () => void }>
                                     >
                                         Leftovers
                                     </button>
+                                    {targetMealIndex !== null && (
+                                        <button
+                                            onClick={() => {
+                                                setModalTab('suggestions');
+                                                if (suggestedSides.length === 0 && !isSuggesting) {
+                                                    handleSuggestSides();
+                                                }
+                                            }}
+                                            className={`pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 ${modalTab === 'suggestions' ? 'border-primary text-primary' : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-main)]'}`}
+                                        >
+                                            <span className="text-xs">✨</span> AI Suggestions
+                                        </button>
+                                    )}
                                 </div>
 
-                                {modalTab === 'library' ? (
+                                {modalTab === 'suggestions' ? (
+                                    <div className="overflow-y-auto p-4 flex-1 bg-transparent">
+                                        {isSuggesting ? (
+                                            <div className="flex flex-col items-center justify-center py-16 text-[var(--text-secondary)] animate-pulse">
+                                                <div className="w-12 h-12 rounded-full bg-hearth/10 flex items-center justify-center mb-4">
+                                                    <span className="text-2xl animate-spin">✨</span>
+                                                </div>
+                                                <p className="font-medium">Consulting the chef...</p>
+                                                <p className="text-xs mt-2">Finding the perfect pair for your meal</p>
+                                            </div>
+                                        ) : suggestedSides.length === 0 ? (
+                                            <div className="text-center py-16 text-[var(--text-secondary)]">
+                                                <p className="font-medium">No suggestions available.</p>
+                                                <button
+                                                    onClick={handleSuggestSides}
+                                                    className="mt-4 px-4 py-2 bg-primary text-white rounded-lg text-sm font-bold hover:bg-primary/90"
+                                                >
+                                                    Try Again
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="grid gap-3">
+                                                <div className="px-2 pb-2 text-xs text-[var(--text-secondary)]">
+                                                    Found {suggestedSides.length} matches for your meal
+                                                </div>
+                                                {suggestedSides.map((recipe, idx) => (
+                                                    <button
+                                                        key={recipe.id || idx}
+                                                        onClick={() => executeAddMeal(recipe)}
+                                                        className="flex items-center gap-4 p-2 rounded-xl bg-[var(--card-bg)] border border-border hover:border-primary hover:shadow-md transition-all text-left group"
+                                                    >
+                                                        <div className={`w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 relative flex items-center justify-center ${getRecipeTheme(recipe.tags).bg}`}>
+                                                            {recipe.image ? (
+                                                                <img src={recipe.image} alt={recipe.name} className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                <div className={`text-3xl font-bold uppercase opacity-50 ${getRecipeTheme(recipe.tags).text}`}>
+                                                                    {(recipe.name || 'S').charAt(0)}
+                                                                </div>
+                                                            )}
+                                                            <div className="absolute top-1 right-1 bg-white/80 dark:bg-black/50 backdrop-blur-sm rounded-full p-1">
+                                                                <span className="text-xs">✨</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex-1 min-w-0 py-1">
+                                                            <h4 className="font-bold text-lg text-[var(--text-main)] truncate font-serif">{recipe.name}</h4>
+                                                            <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)] font-sans mt-0.5">
+                                                                <span className="bg-charcoal/5 dark:bg-white/10 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide font-bold">Suggested Side</span>
+                                                                <span className="font-medium">{recipe.calories} kcal</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="pr-2">
+                                                            <div className="w-8 h-8 rounded-full border border-border flex items-center justify-center transition-all text-charcoal/60 dark:text-stone-400 group-hover:border-primary group-hover:text-primary">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                                                            </div>
+                                                        </div>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : modalTab === 'library' ? (
                                     <>
                                         {/* Search & Filter */}
                                         <div className="p-6 space-y-4 border-b border-border bg-transparent">

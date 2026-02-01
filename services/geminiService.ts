@@ -2,6 +2,25 @@ import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { GEMINI_TEXT_MODEL, GEMINI_FAST_MODEL } from "../constants";
 import { Recipe, DayPlan, FoodLogItem, PurchasableItem } from "../types";
 
+const SIDE_DISH_PROMPT = `
+  You are an expert chef and nutritionist. Suggest 3 suitable side dishes for the following main meal.
+  
+  MAIN MEAL: "{mainMealName}"
+  CURRENT CALORIES: {mainMealCalories}
+  
+  Valid Side Dish Types:
+  - Salad (light, fresh)
+  - Vegetable side (steamed, roasted)
+  - Carbohydrate (rice, potatoes, bread) - ONLY if main meal lacks carbs
+  
+  Constraints:
+  - Total calories for side should be between 100-300kcal
+  - Must complement the flavors of the main dish
+  - Must be simple to prepare
+  
+  Return JSON array of 3 Recipe objects.
+`;
+
 const apiKey = import.meta.env.VITE_GOOGLE_GENAI_API_KEY;
 const ai = new GoogleGenAI({ apiKey: apiKey });
 
@@ -801,5 +820,41 @@ OUTPUT: Complete recipe with name, ingredients list with quantities, instruction
   } catch (error) {
     console.error("Error generating recipe from ingredients:", error);
     throw error;
+  }
+};
+
+export const suggestSideDishes = async (mainMealName: string, mainMealCalories: number): Promise<Recipe[]> => {
+  if (!apiKey) throw new Error("API Key not found");
+
+  const prompt = SIDE_DISH_PROMPT
+    .replace("{mainMealName}", mainMealName)
+    .replace("{mainMealCalories}", mainMealCalories.toString());
+
+  try {
+    const response = await ai.models.generateContent({
+      model: GEMINI_TEXT_MODEL,
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: recipeSchema
+        }
+      }
+    });
+
+    const output = response.text;
+    if (!output) throw new Error("No response from AI");
+
+    const recipes: Recipe[] = JSON.parse(output);
+    return recipes.map(r => ({
+      ...r,
+      id: crypto.randomUUID(),
+      tags: [...(r.tags || []), 'side dish']
+    }));
+
+  } catch (error) {
+    console.error("Error suggesting side dishes:", error);
+    return [];
   }
 };
