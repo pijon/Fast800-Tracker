@@ -18,7 +18,7 @@ export const Planner: React.FC<{ stats: UserStats; onPlanChanged?: () => void }>
     const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
     const [weekDates, setWeekDates] = useState<string[]>([]);
     const [weekPlans, setWeekPlans] = useState<Record<string, DayPlan>>({});
-    const [dayPlan, setDayPlan] = useState<DayPlan | null>(null);
+    // const [dayPlan, setDayPlan] = useState<DayPlan | null>(null); // Removed - Derived from weekPlans
     const [availableRecipes, setAvailableRecipes] = useState<Recipe[]>([]);
     const [showAddModal, setShowAddModal] = useState(false);
 
@@ -53,8 +53,25 @@ export const Planner: React.FC<{ stats: UserStats; onPlanChanged?: () => void }>
     const [targetMealIndex, setTargetMealIndex] = useState<number | null>(null); // For adding sides
     const [showBatchPlanner, setShowBatchPlanner] = useState(false);
 
+    // Data Loading
+    const loadData = async () => {
+        const today = new Date().toISOString().split('T')[0];
+        const end = new Date();
+        end.setDate(end.getDate() + 14); // Fetch 2 weeks out
+        const endDate = end.toISOString().split('T')[0];
+
+        // Parallel fetch
+        const [recipes, plans] = await Promise.all([
+            getRecipes(),
+            getFamilyPlansInRange(today, endDate)
+        ]);
+
+        setAvailableRecipes(recipes);
+        setWeekPlans(plans);
+    };
+
     useEffect(() => {
-        // Generate next 7 days
+        // Generate next 7 days for UI
         const dates = [];
         const today = new Date();
         for (let i = 0; i < 7; i++) {
@@ -63,27 +80,18 @@ export const Planner: React.FC<{ stats: UserStats; onPlanChanged?: () => void }>
             dates.push(d.toISOString().split('T')[0]);
         }
         setWeekDates(dates);
-        getRecipes().then(setAvailableRecipes);
-        getUpcomingPlan(7).then(setWeekPlans);
+
+        // Initial Fetch
+        loadData();
     }, []);
 
-    useEffect(() => {
-        // Refresh weekly plans (and current day) using Family Logic
-        const today = new Date().toISOString().split('T')[0];
-        const end = new Date();
-        end.setDate(end.getDate() + 14); // Fetch 2 weeks out to be safe
-        const endDate = end.toISOString().split('T')[0];
-
-        // Load the specific day (merged)
-        getFamilyPlansInRange(selectedDate, selectedDate).then(plans => {
-            const plan = plans[selectedDate];
-            console.log("Planner loaded family plan for", selectedDate, plan);
-            setDayPlan(plan || { date: selectedDate, meals: [], completedMealIds: [] });
-        });
-
-        // Refresh cache for scroll view
-        getFamilyPlansInRange(today, endDate).then(setWeekPlans);
-    }, [selectedDate]);
+    // Derived State (Immediate - No Loading State on Switch)
+    const dayPlan = weekPlans[selectedDate] || {
+        date: selectedDate,
+        meals: [],
+        completedMealIds: [],
+        type: 'fast' // Default match storageService default
+    };
 
     const handleRecipeSelect = (recipe: Recipe) => {
         // Skip config for custom manual entries (assumed "Eat Out" or simple logging)
@@ -98,9 +106,15 @@ export const Planner: React.FC<{ stats: UserStats; onPlanChanged?: () => void }>
         setShowConfigModal(true);
     };
 
-    const executeAddMeal = async (recipe: Recipe, servingsOverride?: number) => {
-        if (!dayPlan) return;
+    const updatePlanOptimistically = (updatedPlan: DayPlan) => {
+        setWeekPlans(prev => ({
+            ...prev,
+            [updatedPlan.date]: updatedPlan
+        }));
+        onPlanChanged?.();
+    };
 
+    const executeAddMeal = async (recipe: Recipe, servingsOverride?: number) => {
         let newMeals = [...dayPlan.meals];
 
         // Create the meal object with the scaling override if provided
@@ -142,9 +156,12 @@ export const Planner: React.FC<{ stats: UserStats; onPlanChanged?: () => void }>
         const totalCals = calculateTotalCalories(newMeals);
 
         const updatedPlan = { ...dayPlan, meals: newMeals, totalCalories: totalCals };
-        saveDayPlan(updatedPlan);
-        setDayPlan(updatedPlan);
-        onPlanChanged?.();
+
+        // Optimistic Update
+        updatePlanOptimistically(updatedPlan);
+
+        // Persist
+        await saveDayPlan(updatedPlan);
     };
 
     const confirmConfigAndAdd = () => {
@@ -174,7 +191,6 @@ export const Planner: React.FC<{ stats: UserStats; onPlanChanged?: () => void }>
     };
 
     const removeMeal = async (index: number) => {
-        if (!dayPlan) return;
         const newMeals = [...dayPlan.meals];
         newMeals.splice(index, 1);
 
@@ -188,13 +204,12 @@ export const Planner: React.FC<{ stats: UserStats; onPlanChanged?: () => void }>
         const totalCals = calculateTotalCalories(newMeals);
 
         const updatedPlan = { ...dayPlan, meals: newMeals, totalCalories: totalCals };
-        saveDayPlan(updatedPlan);
-        setDayPlan(updatedPlan);
-        onPlanChanged?.();
+
+        updatePlanOptimistically(updatedPlan);
+        await saveDayPlan(updatedPlan);
     };
 
     const removeSide = async (parentIndex: number, sideIndex: number) => {
-        if (!dayPlan) return;
         const newMeals = [...dayPlan.meals];
         const parentMeal = { ...newMeals[parentIndex] };
 
@@ -214,29 +229,25 @@ export const Planner: React.FC<{ stats: UserStats; onPlanChanged?: () => void }>
             const totalCals = calculateTotalCalories(newMeals);
             const updatedPlan = { ...dayPlan, meals: newMeals, totalCalories: totalCals };
 
-            saveDayPlan(updatedPlan);
-            setDayPlan(updatedPlan);
-            onPlanChanged?.();
+            updatePlanOptimistically(updatedPlan);
+            await saveDayPlan(updatedPlan);
         }
     };
 
     const togglePacked = async (index: number) => {
-        if (!dayPlan) return;
         const newMeals = [...dayPlan.meals];
         const meal = newMeals[index];
         newMeals[index] = { ...meal, isPacked: !meal.isPacked };
 
         const updatedPlan = { ...dayPlan, meals: newMeals };
-        saveDayPlan(updatedPlan);
-        setDayPlan(updatedPlan);
-        onPlanChanged?.();
+
+        updatePlanOptimistically(updatedPlan);
+        await saveDayPlan(updatedPlan);
     }
 
     const openAddModal = () => {
         setSwapIndex(null);
         setTargetMealIndex(null);
-        resetModalState();
-        setShowAddModal(true);
         resetModalState();
         setShowAddModal(true);
 
@@ -292,8 +303,6 @@ export const Planner: React.FC<{ stats: UserStats; onPlanChanged?: () => void }>
         setMaxCalories('');
         setCustomName('');
         setCustomCalories('');
-        setCustomName('');
-        setCustomCalories('');
         setCustomType('main meal');
         setSuggestedSides([]);
         setIsSuggesting(false);
@@ -330,8 +339,6 @@ export const Planner: React.FC<{ stats: UserStats; onPlanChanged?: () => void }>
     });
 
     const toggleMealCompletion = async (mealId: string) => {
-        if (!dayPlan) return;
-
         let newCompleted = [...dayPlan.completedMealIds];
         if (newCompleted.includes(mealId)) {
             newCompleted = newCompleted.filter(id => id !== mealId);
@@ -340,26 +347,17 @@ export const Planner: React.FC<{ stats: UserStats; onPlanChanged?: () => void }>
         }
 
         const updatedPlan = { ...dayPlan, completedMealIds: newCompleted };
-        setDayPlan(updatedPlan);
+
+        updatePlanOptimistically(updatedPlan);
         await saveDayPlan(updatedPlan);
-        onPlanChanged?.();
     };
 
     const toggleFastDay = async () => {
         const newType = dayPlan?.type === 'fast' ? 'non-fast' : 'fast';
-        const updatedPlan: DayPlan = dayPlan
-            ? { ...dayPlan, type: newType }
-            : { date: selectedDate, meals: [], completedMealIds: [], type: newType };
+        const updatedPlan: DayPlan = { ...dayPlan, type: newType };
 
-        setDayPlan(updatedPlan);
+        updatePlanOptimistically(updatedPlan);
         await saveDayPlan(updatedPlan);
-        onPlanChanged?.();
-
-        // Optimistically update the week view cache
-        setWeekPlans(prev => ({
-            ...prev,
-            [selectedDate]: updatedPlan
-        }));
     };
 
     return (

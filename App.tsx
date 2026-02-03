@@ -172,12 +172,49 @@ const TrackerApp: React.FC = () => {
         }
     };
 
+    // Revalidate on focus (SWR)
+    useEffect(() => {
+        const onFocus = () => {
+            if (document.visibilityState === 'visible') {
+                // console.log("App focused, revalidating data...");
+                refreshData();
+            }
+        };
+
+        window.addEventListener('focus', onFocus);
+        document.addEventListener('visibilitychange', onFocus);
+
+        return () => {
+            window.removeEventListener('focus', onFocus);
+            document.removeEventListener('visibilitychange', onFocus);
+        };
+    }, [refreshData]); // Re-attach if refreshData changes (it changes when date changes)
+
 
     useEffect(() => {
         const init = async () => {
             try {
+                // SWR Strategy: Load from cache immediately
+                const { getCachedDayPlan, getCachedUserStats, getCachedDailyLog, getCachedFastingState } = await import('./services/storageService');
+
+                const cachedToday = getCachedDayPlan(todayDate);
+                const cachedTomorrow = getCachedDayPlan(tomorrowDate);
+                const cachedStats = getCachedUserStats();
+                const cachedLog = getCachedDailyLog(todayDate);
+                const cachedFasting = getCachedFastingState();
+
+                if (cachedToday) setTodayPlan(cachedToday);
+                if (cachedTomorrow) setTomorrowPlan(cachedTomorrow);
+                if (cachedStats) {
+                    setUserStatsState(prev => ({ ...prev, ...cachedStats, weightHistory: cachedStats.weightHistory || [] }));
+                }
+                if (cachedLog) setDailyLog(cachedLog);
+                if (cachedFasting) setFastingState(cachedFasting);
+
+                setIsInitializing(false); // Show UI immediately if we have cache
+
                 await migrateFromLocalStorage();
-                await refreshData();
+                await refreshData(); // Background refresh
             } catch (error) {
                 console.error("Initialization error", error);
             } finally {

@@ -16,6 +16,34 @@ const getUserRef = () => doc(db, 'users', getUserId());
 const getCollectionRef = (name: string) => collection(db, 'users', getUserId(), name);
 const getDocRef = (collectionName: string, docId: string) => doc(db, 'users', getUserId(), collectionName, docId);
 
+// --- Local Caching Helpers (SWR Strategy) ---
+const CACHE_PREFIX = 'fast800_cache_';
+
+const getCacheKey = (type: string, id?: string) => `${CACHE_PREFIX}${type}${id ? `_${id}` : ''}`;
+
+const getFromCache = <T>(key: string): T | null => {
+  try {
+    const item = localStorage.getItem(key);
+    return item ? JSON.parse(item) : null;
+  } catch (e) {
+    console.warn(`Error reading cache for ${key}`, e);
+    return null;
+  }
+};
+
+const saveToCache = <T>(key: string, data: T) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch (e) {
+    console.warn(`Error saving cache for ${key}`, e);
+  }
+};
+
+export const getCachedDayPlan = (date: string): DayPlan | null => getFromCache<DayPlan>(getCacheKey('dayPlan', date));
+export const getCachedDailyLog = (date: string): DailyLog | null => getFromCache<DailyLog>(getCacheKey('dailyLog', date));
+export const getCachedUserStats = (): UserStats | null => getFromCache<UserStats>(getCacheKey('stats'));
+export const getCachedFastingState = (): FastingState | null => getFromCache<FastingState>(getCacheKey('fasting'));
+
 export const getUserData = async () => {
   const userDoc = await getDoc(getUserRef());
   return userDoc.data();
@@ -343,17 +371,22 @@ export const getDayPlan = async (date: string): Promise<DayPlan> => {
       // Hydrate PlannedMeal[] to Recipe[] for UI
       const hydratedMeals = storedPlan.meals ? await hydratePlannedMeals(storedPlan.meals) : [];
 
-      // Return plan with hydrated meals
-      return {
+      const fullPlan: DayPlan = {
         ...storedPlan,
         meals: hydratedMeals
       };
+
+      // Update Cache
+      saveToCache(getCacheKey('dayPlan', date), fullPlan);
+      return fullPlan;
     }
 
     // 2. Fallback to legacy (if not found in new, and legacy exists)
     // We don't want to load the huge blob on every missing day, but for migration safety:
     // Ideally we migrate once. For now, let's return empty and rely on a global migration.
-    return { date, meals: [], completedMealIds: [] };
+    const emptyPlan: DayPlan = { date, meals: [], completedMealIds: [] };
+    saveToCache(getCacheKey('dayPlan', date), emptyPlan);
+    return emptyPlan;
   } catch (e) {
     console.error("Error getting day plan:", e);
     return { date, meals: [], completedMealIds: [] };
@@ -362,6 +395,9 @@ export const getDayPlan = async (date: string): Promise<DayPlan> => {
 
 
 export const saveDayPlan = async (dayPlan: DayPlan) => {
+  // 1. Optimistic Cache Update
+  saveToCache(getCacheKey('dayPlan', dayPlan.date), dayPlan);
+
   const docRef = doc(db, 'users', getUserId(), 'days', dayPlan.date);
 
   // Runtime conversion: Convert Recipe[] to PlannedMeal[] before saving
@@ -732,20 +768,35 @@ export const getWeeklyPlan = async (): Promise<Record<string, DayPlan>> => {
 };
 
 // --- Stats (Weight) ---
+const USER_DOC = 'stats'; // or just on the user doc itself?
+// Let's use a subcollection 'data' doc 'stats' for cleaner separation if needed,
+// but for now keeping it simple: store on user doc or specific doc.
+// Going with 'data/stats' to match other singletons
 const STATS_DOC = 'stats';
+
 export const getUserStats = async (): Promise<UserStats> => {
-  const d = await getDoc(getDocRef('data', STATS_DOC));
-  if (d.exists()) {
-    const stats = d.data() as UserStats;
-    if (typeof stats.dailyWaterGoal === 'undefined') {
-      stats.dailyWaterGoal = DEFAULT_USER_STATS.dailyWaterGoal;
+  try {
+    const d = await getDoc(getDocRef('data', STATS_DOC));
+    if (d.exists()) {
+      const stats = d.data() as UserStats;
+      // Update Cache
+      saveToCache(getCacheKey('stats'), stats);
+      return stats;
     }
-    return stats;
+    // Try legacy
+    const legacy = localStorage.getItem("fast800_stats");
+    if (legacy) return JSON.parse(legacy);
+
+    return DEFAULT_USER_STATS;
+  } catch (e) {
+    console.error("Error getting user stats", e);
+    return DEFAULT_USER_STATS;
   }
-  return DEFAULT_USER_STATS;
 };
 
 export const saveUserStats = async (stats: UserStats) => {
+  // Optimistic Cache
+  saveToCache(getCacheKey('stats'), stats);
   await setDoc(getDocRef('data', STATS_DOC), stats);
 };
 
@@ -839,17 +890,29 @@ export const migrateShoppingState = async () => {
 // --- Daily Logs ---
 // Using a collection 'logs' where docId = date
 export const getDailyLog = async (date: string): Promise<DailyLog> => {
-  const d = await getDoc(getDocRef('logs', date));
-  if (d.exists()) {
-    const log = d.data() as DailyLog;
-    if (!log.workouts) log.workouts = [];
-    if (typeof log.waterIntake === 'undefined') log.waterIntake = 0;
-    return log;
+  try {
+    const d = await getDoc(getDocRef('logs', date));
+    if (d.exists()) {
+      const log = d.data() as DailyLog;
+      if (!log.workouts) log.workouts = [];
+      if (typeof log.waterIntake === 'undefined') log.waterIntake = 0;
+
+      // Update Cache
+      saveToCache(getCacheKey('dailyLog', date), log);
+      return log;
+    }
+    const emptyLog = { date, items: [], workouts: [], waterIntake: 0 };
+    saveToCache(getCacheKey('dailyLog', date), emptyLog);
+    return emptyLog;
+  } catch (e) {
+    console.error("Error getting daily log", e);
+    return { date, items: [], workouts: [], waterIntake: 0 };
   }
-  return { date, items: [], workouts: [], waterIntake: 0 };
 };
 
 export const saveDailyLog = async (log: DailyLog) => {
+  // Optimistic Cache
+  saveToCache(getCacheKey('dailyLog', log.date), log);
   await setDoc(getDocRef('logs', log.date), log);
 };
 
@@ -900,43 +963,57 @@ export const getRecentWorkouts = async (limit: number = 5, daysBack: number = 30
   return Array.from(uniqueWorkouts.values()).slice(0, limit);
 };
 
+// ... (Daily Summaries omitted as they are typically historical)
+
 // --- Fasting ---
 const FASTING_DOC = 'fasting';
 const FASTING_HISTORY_DOC = 'fasting_history'; // Actually maybe a collection?
 // History is array in localStorage. Let's keep it as an array in a doc for now.
 
 export const getFastingState = async (): Promise<FastingState> => {
-  const d = await getDoc(getDocRef('data', FASTING_DOC));
+  try {
+    const d = await getDoc(getDocRef('data', FASTING_DOC));
 
-  if (d.exists()) {
-    const data = d.data() as any;
+    if (d.exists()) {
+      const data = d.data() as any;
 
-    // Migration: Convert old format to new
-    if ('isFasting' in data || 'startTime' in data || 'endTime' in data) {
-      console.log('Migrating old fasting state format to new lastAteTime format...');
+      // Migration: Convert old format to new
+      if ('isFasting' in data || 'startTime' in data || 'endTime' in data) {
+        console.log('Migrating old fasting state format to new lastAteTime format...');
 
-      const newState: FastingState = {
-        // If they were fasting, assume they ate before starting the fast
-        // If they were in eating window, use endTime as last ate time
-        lastAteTime: data.endTime || (data.startTime ? data.startTime - (60 * 60 * 1000) : null),
-        config: data.config || { protocol: '16:8', targetFastHours: 16 }
-      };
+        const newState: FastingState = {
+          // If they were fasting, assume they ate before starting the fast
+          // If they were in eating window, use endTime as last ate time
+          lastAteTime: data.endTime || (data.startTime ? data.startTime - (60 * 60 * 1000) : null),
+          config: data.config || { protocol: '16:8', targetFastHours: 16 }
+        };
 
-      // Save migrated state
-      await saveFastingState(newState);
-      return newState;
+        // Save migrated state
+        await saveFastingState(newState);
+        return newState;
+      }
+
+      return data as FastingState;
     }
 
-    return data as FastingState;
+    const defaultState: FastingState = {
+      lastAteTime: null,
+      config: { protocol: '16:8', targetFastHours: 16 }
+    };
+    saveToCache(getCacheKey('fasting'), defaultState);
+    return defaultState;
+  } catch (e) {
+    console.error("Error getting fasting state", e);
+    return {
+      lastAteTime: null,
+      config: { protocol: '16:8', targetFastHours: 16 }
+    };
   }
-
-  return {
-    lastAteTime: null,
-    config: { protocol: '16:8', targetFastHours: 16 }
-  };
 };
 
 export const saveFastingState = async (state: FastingState) => {
+  // Optimistic Cache
+  saveToCache(getCacheKey('fasting'), state);
   await setDoc(getDocRef('data', FASTING_DOC), state);
 };
 

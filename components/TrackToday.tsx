@@ -24,20 +24,20 @@ interface TrackTodayProps {
   dailyLog: DailyLog;
   fastingState: FastingState;
   onUpdateStats: (stats: UserStats) => void;
-  onLogMeal: (meal: Recipe, isAdding: boolean) => void;
-  onAddFoodLogItems: (items: FoodLogItem[]) => void;
-  onUpdateFoodItem: (item: FoodLogItem) => void;
-  onDeleteFoodItem: (itemId: string) => void;
-  onAddWorkout: (workout: WorkoutItem) => void;
-  onUpdateWorkout: (workout: WorkoutItem) => void;
-  onDeleteWorkout: (workoutId: string) => void;
-  onUpdateFastingConfig: (config: FastingConfig) => void;
+  onLogMeal: (meal: Recipe, isAdding: boolean) => Promise<void>;
+  onAddFoodLogItems: (items: FoodLogItem[]) => Promise<void>;
+  onUpdateFoodItem: (item: FoodLogItem) => Promise<void>;
+  onDeleteFoodItem: (itemId: string) => Promise<void>;
+  onAddWorkout: (workout: WorkoutItem) => Promise<void>;
+  onUpdateWorkout: (workout: WorkoutItem) => Promise<void>;
+  onDeleteWorkout: (workoutId: string) => Promise<void>;
+  onUpdateFastingConfig: (config: FastingConfig) => Promise<void>;
   refreshData: () => void;
   onNavigate: (view: AppView) => void;
   onOpenFoodModal: () => void;
   onOpenWorkoutModal: (workout?: WorkoutItem) => void;
   onOpenWeightModal: () => void;
-  onAddWater: (amount: number) => void;
+  onAddWater: (amount: number) => Promise<void>;
 }
 
 export const TrackToday: React.FC<TrackTodayProps> = ({
@@ -192,7 +192,7 @@ export const TrackToday: React.FC<TrackTodayProps> = ({
 
     const updatedPlan = { ...todayPlan, completedMealIds: newCompleted };
     await saveDayPlan(updatedPlan);
-    onLogMeal(meal, isAdding);
+    await onLogMeal(meal, isAdding);
     refreshData();
   };
 
