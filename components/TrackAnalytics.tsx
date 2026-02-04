@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, LineChart, Line, BarChart, Bar, ComposedChart, ReferenceLine } from 'recharts';
-import { DayPlan, UserStats, DailyLog } from '../types';
+import { DayPlan, UserStats, DailyLog, FastingState } from '../types';
 import { getDailySummaries, getDayPlansInRange } from '../services/storageService';
 import { analyzeWeightTrends } from '../utils/analytics';
 
@@ -14,9 +14,10 @@ interface TrackAnalyticsProps {
     todayPlan: DayPlan;
     stats: UserStats;
     dailyLog: DailyLog;
+    fastingState: FastingState;
 }
 
-export const TrackAnalytics: React.FC<TrackAnalyticsProps> = ({ stats, dailyLog }) => {
+export const TrackAnalytics: React.FC<TrackAnalyticsProps> = ({ stats, dailyLog, fastingState }) => {
     const [dailySummaries, setDailySummaries] = useState<any[]>([]);
     const [dayTypes, setDayTypes] = useState<Record<string, string>>({});
     const [weightTimeRange, setWeightTimeRange] = useState<'7d' | '30d'>('7d');
@@ -290,7 +291,7 @@ export const TrackAnalytics: React.FC<TrackAnalyticsProps> = ({ stats, dailyLog 
                     {/* Daily Goals History */}
                     <div className="">
                         <h4 className="text-lg font-serif font-normal text-charcoal dark:text-stone-200 mb-4">Daily Goals History</h4>
-                        <GoalsHistoryChart summaries={dailySummaries} stats={stats} />
+                        <GoalsHistoryChart summaries={dailySummaries} stats={stats} fastingGoal={fastingState.config.targetFastHours} />
                     </div>
 
                     {/* Daily Calorie Tracking */}

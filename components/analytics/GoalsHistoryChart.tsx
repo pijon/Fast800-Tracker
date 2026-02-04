@@ -5,14 +5,15 @@ import { DailySummary, UserStats } from '../../types';
 interface GoalsHistoryChartProps {
     summaries: DailySummary[];
     stats: UserStats;
+    fastingGoal: number;
 }
 
-export const GoalsHistoryChart: React.FC<GoalsHistoryChartProps> = ({ summaries, stats }) => {
+export const GoalsHistoryChart: React.FC<GoalsHistoryChartProps> = ({ summaries, stats, fastingGoal }) => {
     // Calculate goal percentages for each day
     const chartData = summaries.slice(-14).map(summary => {
         const calorieGoal = stats.dailyCalorieGoal || 800;
         const waterGoal = stats.dailyWaterGoal || 2000;
-        const fastingGoal = 16; // Standard IF target
+        // fastingGoal is now passed in props
 
         // Calculate percentage achieved (capped at 150% for display)
         const caloriePercent = Math.min(((summary.caloriesConsumed / calorieGoal) * 100), 150);

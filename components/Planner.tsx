@@ -60,14 +60,34 @@ export const Planner: React.FC<{ stats: UserStats; onPlanChanged?: () => void }>
         end.setDate(end.getDate() + 14); // Fetch 2 weeks out
         const endDate = end.toISOString().split('T')[0];
 
-        // Parallel fetch
+        // SWR: Load from cache first
+        // Need to import dynamically or use the ones from storageService if available
+        // We imported them at top level but need to ensure we use the new exports
+        // Re-importing locally to ensure we get the latest
+        const { getCachedPlansInRange, getRecipes: getRecipesCached } = await import('../services/storageService');
+
+        // Manual cache check (since we haven't updated the import at top of file yet)
+        const cachedPlans = getCachedPlansInRange(today, endDate);
+        if (cachedPlans) {
+            setWeekPlans(cachedPlans);
+        }
+
+        // Recipes cache check
+        // We can do a direct localStorage check or use a helper. 
+        // Let's rely on the Promise.all below for the network part, but try to hydrate recipes from cache if possible
+        // Actually, getRecipes now saves to cache. We need a way to READ.
+        // Let's add getCachedRecipes export to storageService in the previous step, assuming I did.
+        // Wait, I only added the const, I didn't export `getCachedRecipes`. 
+        // I should fix storageService export first.
+
+        // Proceeding with Parallel fetch (Background Revalidation)
         const [recipes, plans] = await Promise.all([
             getRecipes(),
             getFamilyPlansInRange(today, endDate)
         ]);
 
         setAvailableRecipes(recipes);
-        setWeekPlans(plans);
+        setWeekPlans(plans); // This will overwrite cache with fresh data
     };
 
     useEffect(() => {

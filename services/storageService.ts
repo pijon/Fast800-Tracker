@@ -52,6 +52,8 @@ export const getUserData = async () => {
 // --- Recipes ---
 // Saved as individual documents in 'recipes' collection
 // Saved as individual documents in 'recipes' collection
+const getCachedRecipes = (): Recipe[] | null => getFromCache<Recipe[]>(getCacheKey('recipes'));
+
 export const getRecipes = async (limitCount?: number): Promise<Recipe[]> => {
   try {
     let q;
@@ -73,6 +75,10 @@ export const getRecipes = async (limitCount?: number): Promise<Recipe[]> => {
       }
       return data as Recipe;
     });
+
+    if (!limitCount) {
+      saveToCache(getCacheKey('recipes'), recipes);
+    }
 
     return recipes;
   } catch (e) {
@@ -643,6 +649,26 @@ export const getDayPlansInRange = async (startDate: string, endDate: string): Pr
     console.error("Error fetching day plans in range:", e);
     return {};
   }
+};
+
+// Purely local helper to stitch together a range from existing cache
+export const getCachedPlansInRange = (startDate: string, endDate: string): Record<string, DayPlan> | null => {
+  const plans: Record<string, DayPlan> = {};
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  let allFound = false; // We can be partial, it's better than nothing. SWR will update.
+
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    const dateStr = d.toISOString().split('T')[0];
+    const cachedDay = getCachedDayPlan(dateStr);
+    if (cachedDay) {
+      plans[dateStr] = cachedDay;
+    }
+  }
+
+  // Return what we have if we have anything
+  if (Object.keys(plans).length > 0) return plans;
+  return null;
 };
 
 /**
