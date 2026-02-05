@@ -1,6 +1,29 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
-import { GEMINI_TEXT_MODEL, GEMINI_FAST_MODEL } from "../constants";
-import { Recipe, DayPlan, FoodLogItem, PurchasableItem } from "../types";
+import {
+  GEMINI_TEXT_MODEL,
+  GEMINI_FAST_MODEL,
+  GEMINI_MODEL_V3_PREVIEW,
+  GEMINI_MODEL_STABLE,
+  DEFAULT_FEATURE_FLAGS
+} from "../constants";
+import { Recipe, DayPlan, FoodLogItem, PurchasableItem, FeatureFlags } from "../types";
+
+// Helper to determine active model
+const getModel = (): string => {
+  try {
+    const saved = localStorage.getItem('fast800_devFeatureFlags');
+    const flags: FeatureFlags = saved ? JSON.parse(saved) : DEFAULT_FEATURE_FLAGS;
+
+    // Default to strict V3 if flag is on, or V2 Stable if off
+    // If flag is undefined (old config), fallback to default (true -> V3)
+    const useExperimental = flags.useGeminiExperimental ?? DEFAULT_FEATURE_FLAGS.useGeminiExperimental;
+
+    return useExperimental ? GEMINI_MODEL_V3_PREVIEW : GEMINI_MODEL_STABLE;
+  } catch (e) {
+    console.warn("Failed to read feature flags for model selection, defaulting to stable", e);
+    return GEMINI_MODEL_STABLE;
+  }
+};
 
 const SIDE_DISH_PROMPT = `
   You are an expert chef and nutritionist. Suggest 3 suitable side dishes for the following main meal.
@@ -98,8 +121,11 @@ export const parseRecipeText = async (text: string, attempt = 1): Promise<Partia
   `;
 
   try {
+    const activeModel = getModel();
+    console.log(`[Gemini Service] Using Model: ${activeModel}`);
+
     const response = await ai.models.generateContent({
-      model: GEMINI_TEXT_MODEL,
+      model: activeModel,
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -119,9 +145,11 @@ export const parseRecipeText = async (text: string, attempt = 1): Promise<Partia
       id: crypto.randomUUID()
     };
 
-  } catch (error) {
+  } catch (error: any) {
     console.warn(`[Recipe Parse] Attempt ${attempt} failed:`, error);
 
+    // If API error specific to model, maybe retry? 
+    // For now standard retry logic
     if (attempt < 3) {
       console.log(`[Recipe Parse] Retrying (Attempt ${attempt + 1})...`);
       // Simple backoff
@@ -196,8 +224,11 @@ export const generateMealPlan = async (preferences: string): Promise<DayPlan> =>
   `;
 
   try {
+    const activeModel = getModel();
+    console.log(`[Gemini Service] generateMealPlan using: ${activeModel}`);
+
     const response = await ai.models.generateContent({
-      model: GEMINI_TEXT_MODEL,
+      model: activeModel,
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -280,8 +311,9 @@ export const analyzeFoodLog = async (text: string): Promise<FoodLogItem[]> => {
   `;
 
   try {
+    const activeModel = getModel();
     const response = await ai.models.generateContent({
-      model: GEMINI_TEXT_MODEL,
+      model: activeModel,
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -355,8 +387,9 @@ export const analyzeFoodImage = async (imageBase64: string, mimeType: string): P
   `;
 
   try {
+    const activeModel = getModel();
     const response = await ai.models.generateContent({
-      model: GEMINI_TEXT_MODEL,
+      model: activeModel,
       contents: [
         {
           parts: [
@@ -395,8 +428,6 @@ export const analyzeFoodImage = async (imageBase64: string, mimeType: string): P
     throw error;
   }
 };
-
-
 
 export type DayConfig = {
   date: string;
@@ -459,8 +490,9 @@ export const planSpecificDays = async (
   `;
 
   try {
+    const activeModel = getModel();
     const response = await ai.models.generateContent({
-      model: GEMINI_TEXT_MODEL,
+      model: activeModel,
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -498,8 +530,6 @@ export const planSpecificDays = async (
     throw error;
   }
 };
-
-
 
 const ingredientParseSchema: Schema = {
   type: Type.ARRAY,
@@ -540,7 +570,7 @@ export const parseIngredients = async (ingredientTexts: string[]): Promise<Array
 
   // 3. Process Missing Items (if any)
   if (missingTexts.length > 0) {
-    console.log(`[AI Parsing] Cache hit: ${uniqueTexts.length - missingTexts.length} items.Fetching ${missingTexts.length} new items.`);
+    console.log(`[AI Parsing] Cache hit: ${uniqueTexts.length - missingTexts.length} items. Fetching ${missingTexts.length} new items.`);
 
     // Batch in chunks of 150 (Flash model has large context) to reduce round-trips
     const chunkSize = 150;
@@ -551,9 +581,9 @@ export const parseIngredients = async (ingredientTexts: string[]): Promise<Array
       chunkPromises.push((async () => {
 
         const prompt = `
-        You are an ingredient parsing specialist.Parse ingredient strings into structured, normalized data for recipe management.
+        You are an ingredient parsing specialist. Parse ingredient strings into structured, normalized data for recipe management.
 
-  TASK: Extract ingredient name(normalized, lowercase), quantity(as number), and unit from each ingredient string.
+  TASK: Extract ingredient name (normalized, lowercase), quantity (as number), and unit from each ingredient string.
 
         BASIC RULES:
 - If no quantity is specified, use 1
@@ -575,7 +605,7 @@ EXAMPLES:
 "Large egg" → { name: "eggs", quantity: 1, unit: "item" }
 
         CRITICAL NORMALIZATION RULES:
-- Return EXACTLY one result per input ingredient(maintain 1: 1 correspondence)
+- Return EXACTLY one result per input ingredient (maintain 1:1 correspondence)
   - Use PLURAL form for countable items: "egg" → "eggs", "tomato" → "tomatoes", "onion" → "onions"
     - Use SINGULAR form for uncountable items: "rice", "flour", "water", "salt"
       - Remove ALL modifiers: "fresh", "extra virgin", "organic", "free-range", "large", "small"
@@ -593,8 +623,9 @@ EXAMPLES:
 `;
 
         try {
+          const activeModel = getModel();
           const response = await ai.models.generateContent({
-            model: GEMINI_TEXT_MODEL,
+            model: activeModel,
             contents: prompt,
             config: {
               responseMimeType: "application/json",
@@ -612,14 +643,11 @@ EXAMPLES:
                 cache[text] = parsedChunk[index];
               });
             } else {
-              console.warn(`[AI Parsing] Chunk mismatch.Sent ${chunk.length}, got ${parsedChunk.length}. Falling back to individual processing or partial cache not implemented.`);
-              // Ideally we retry or handle this, but for now we just try to save what matched if strictly ordered, 
-              // but safe to skip cache save for safety if length mismatches
+              console.warn("Chunk mismatch in parsing");
             }
           }
         } catch (error) {
           console.error("Error parsing ingredient chunk:", error);
-          // Don't throw, just continue. Missing items will fail lookup later and maybe just be skipped or return error
         }
       })());
     }
@@ -634,15 +662,14 @@ EXAMPLES:
       console.error("Failed to save ingredient cache", e);
     }
   } else {
-    console.log(`[AI Parsing] All ${ingredientTexts.length} ingredients found in cache.Instant return.`);
+    console.log(`[AI Parsing] All ${ingredientTexts.length} ingredients found in cache. Instant return.`);
   }
 
   // 4. Construct Result
   const results = ingredientTexts.map(text => {
     const cached = cache[text];
     if (cached) return cached;
-
-    // Fallback for failed items: return raw but valid structure
+    // Fallback
     return { name: text.toLowerCase().trim(), quantity: 1, unit: 'item' };
   });
 
@@ -723,8 +750,9 @@ Output: {
 `;
 
   try {
+    const activeModel = getModel();
     const response = await ai.models.generateContent({
-      model: GEMINI_TEXT_MODEL,
+      model: activeModel,
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -799,8 +827,9 @@ OUTPUT: Complete recipe with name, ingredients list with quantities, instruction
   `;
 
   try {
+    const activeModel = getModel();
     const response = await ai.models.generateContent({
-      model: GEMINI_TEXT_MODEL,
+      model: activeModel,
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -831,8 +860,9 @@ export const suggestSideDishes = async (mainMealName: string, mainMealCalories: 
     .replace("{mainMealCalories}", mainMealCalories.toString());
 
   try {
+    const activeModel = getModel();
     const response = await ai.models.generateContent({
-      model: GEMINI_TEXT_MODEL,
+      model: activeModel,
       contents: prompt,
       config: {
         responseMimeType: "application/json",

@@ -372,8 +372,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                             </div>
 
                             <div className="space-y-4">
-                                <div className="pt-4">
-                                    <p className="text-xs text-charcoal/60 dark:text-stone-400 italic">No active feature flags available.</p>
+                                <div className="pt-2 space-y-3">
+                                    <div className="flex items-center justify-between p-3 bg-stone-100 dark:bg-white/5 rounded-lg border border-border/50">
+                                        <div>
+                                            <h5 className="text-sm font-bold text-charcoal dark:text-stone-200">Gemini 3.0 (Experimental)</h5>
+                                            <p className="text-xs text-charcoal/60 dark:text-stone-400">Use latest preview model (quota limited)</p>
+                                        </div>
+                                        <label className="relative inline-flex items-center cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                className="sr-only peer"
+                                                checked={featureFlags.useGeminiExperimental ?? true}
+                                                onChange={() => toggleFeatureFlag('useGeminiExperimental')}
+                                            />
+                                            <div className="w-11 h-6 bg-stone-300 peer-focus:outline-none dark:bg-stone-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--hearth)]"></div>
+                                        </label>
+                                    </div>
                                 </div>
 
                                 {/* Recovery Tools (New Location) */}

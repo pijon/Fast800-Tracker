@@ -38,6 +38,7 @@ export const RecipeLibrary: React.FC<RecipeLibraryProps> = ({ onSelect }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'ingredients' | 'instructions'>('overview');
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<Recipe | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Image upload state
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
@@ -136,11 +137,19 @@ export const RecipeLibrary: React.FC<RecipeLibraryProps> = ({ onSelect }) => {
   };
 
   const handleSaveEdit = async (updatedRecipe: Recipe) => {
-    await saveRecipe(updatedRecipe);
-    await loadData();
-    setSelectedRecipe(updatedRecipe);
-    setIsEditing(false);
-    setEditForm(null); // Cleanup
+    setIsSaving(true);
+    try {
+      await saveRecipe(updatedRecipe);
+      await loadData();
+      setSelectedRecipe(updatedRecipe);
+      setIsEditing(false);
+      setEditForm(null); // Cleanup
+    } catch (e) {
+      console.error("Failed to save recipe", e);
+      alert("Failed to save recipe. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
 
@@ -604,6 +613,7 @@ export const RecipeLibrary: React.FC<RecipeLibraryProps> = ({ onSelect }) => {
             recipe={editForm || selectedRecipe}
             onSave={handleSaveEdit}
             onCancel={cancelEditing}
+            isSaving={isSaving}
           />
         ) : (
           <RecipeDetailModal

@@ -260,6 +260,7 @@ export interface Group {
 // --- Developer Mode ---
 export interface FeatureFlags {
   forceSundayReset: boolean;
+  useGeminiExperimental: boolean;
 }
 
 export interface DevSettings {
