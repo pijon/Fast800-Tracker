@@ -29,6 +29,7 @@ export const RecipeLibrary: React.FC<RecipeLibraryProps> = ({ onSelect }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOption, setSortOption] = useState<string>('name');
+  const [calorieFilter, setCalorieFilter] = useState<string>('all'); // 'all' or number as string
   const [activeFilter, setActiveFilter] = useState<string>('all');
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [showIngredientModal, setShowIngredientModal] = useState(false);
@@ -55,14 +56,14 @@ export const RecipeLibrary: React.FC<RecipeLibraryProps> = ({ onSelect }) => {
   useEffect(() => {
     if (!hasLoadedAll && !isLoading) {
       const isSearching = searchQuery.trim().length > 0;
-      const isFiltering = activeFilter !== 'all';
+      const isFiltering = activeFilter !== 'all' || calorieFilter !== 'all';
       const isSorting = sortOption !== 'name'; // Assuming 'name' describes the implicit default or random order we accepted, actually default state is 'name'
 
       if (isSearching || isFiltering || isSorting) {
         loadData(true);
       }
     }
-  }, [searchQuery, activeFilter, sortOption]);
+  }, [searchQuery, activeFilter, calorieFilter, sortOption]);
 
   const loadData = async (loadAll: boolean = false) => {
     // Prevent double loading if already loading all
@@ -329,9 +330,11 @@ export const RecipeLibrary: React.FC<RecipeLibraryProps> = ({ onSelect }) => {
         (activeFilter === 'family' && !!recipe.ownerId) ||
         recipe.tags?.includes(activeFilter);
 
+      const matchesCalories = calorieFilter === 'all' || recipe.calories <= parseInt(calorieFilter);
+
       const matchesFavorite = !showFavoritesOnly || recipe.isFavorite;
 
-      return matchesSearch && matchesFilter && matchesFavorite;
+      return matchesSearch && matchesFilter && matchesCalories && matchesFavorite;
     })
     .sort((a, b) => {
       switch (sortOption) {
@@ -481,6 +484,24 @@ export const RecipeLibrary: React.FC<RecipeLibraryProps> = ({ onSelect }) => {
             />
           </div>
 
+
+
+          <div className="relative min-w-[160px]">
+            <select
+              value={calorieFilter}
+              onChange={(e) => setCalorieFilter(e.target.value)}
+              className="appearance-none w-full !py-3 px-4 bg-charcoal/5 dark:bg-white/5 border border-transparent focus:border-hearth/50 rounded-xl text-charcoal dark:text-stone-200 cursor-pointer font-bold focus:outline-none focus:ring-2 focus:ring-hearth/20 transition-all"
+            >
+              <option value="all">Max Cal: All</option>
+              {Array.from({ length: 8 }, (_, i) => (i + 1) * 100).map(cal => (
+                <option key={cal} value={cal.toString()}>Under {cal} kcal</option>
+              ))}
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-charcoal/40 dark:text-stone-500">
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+            </div>
+          </div>
+
           <div className="relative min-w-[200px]">
             <select
               value={sortOption}
@@ -524,7 +545,7 @@ export const RecipeLibrary: React.FC<RecipeLibraryProps> = ({ onSelect }) => {
             Favourites
           </button>
         </div>
-      </GlassCard>
+      </GlassCard >
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3">
         {isLoading ? (
@@ -586,48 +607,54 @@ export const RecipeLibrary: React.FC<RecipeLibraryProps> = ({ onSelect }) => {
         )}
       </div>
 
-      {!hasLoadedAll && !isLoading && recipes.length > 0 && (
-        <div className="flex justify-center mt-8 pb-4">
-          <button
-            onClick={handleLoadMore}
-            className="btn-secondary flex items-center gap-2 group"
-          >
-            <span>Load All Recipes</span>
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="group-hover:translate-y-0.5 transition-transform"><path d="M12 5v14"></path><path d="m19 12-7 7-7-7"></path></svg>
-          </button>
-        </div>
-      )}
+      {
+        !hasLoadedAll && !isLoading && recipes.length > 0 && (
+          <div className="flex justify-center mt-8 pb-4">
+            <button
+              onClick={handleLoadMore}
+              className="btn-secondary flex items-center gap-2 group"
+            >
+              <span>Load All Recipes</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="group-hover:translate-y-0.5 transition-transform"><path d="M12 5v14"></path><path d="m19 12-7 7-7-7"></path></svg>
+            </button>
+          </div>
+        )
+      }
 
       {/* Ingredient Recipe Modal */}
-      {showIngredientModal && (
-        <IngredientRecipeModal
-          onSave={handleSaveGeneratedRecipe}
-          onClose={() => setShowIngredientModal(false)}
-        />
-      )}
-
-      {/* Recipe Detail / Edit Modal */}
-      {selectedRecipe && (
-        isEditing && editForm ? (
-          <RecipeEditModal
-            recipe={editForm || selectedRecipe}
-            onSave={handleSaveEdit}
-            onCancel={cancelEditing}
-            isSaving={isSaving}
-          />
-        ) : (
-          <RecipeDetailModal
-            recipe={selectedRecipe}
-            onClose={closeRecipe}
-            onEdit={!selectedRecipe.ownerId ? startEditing : undefined}
-            onDelete={!selectedRecipe.ownerId ? (id, e) => handleDelete(e, id) : undefined}
-            isOwned={!selectedRecipe.ownerId}
-            onCopyToLibrary={selectedRecipe.ownerId ? async () => {
-              await handleCopyToMyLibrary({ stopPropagation: () => { } } as React.MouseEvent, selectedRecipe);
-            } : undefined}
+      {
+        showIngredientModal && (
+          <IngredientRecipeModal
+            onSave={handleSaveGeneratedRecipe}
+            onClose={() => setShowIngredientModal(false)}
           />
         )
-      )}
-    </div>
+      }
+
+      {/* Recipe Detail / Edit Modal */}
+      {
+        selectedRecipe && (
+          isEditing && editForm ? (
+            <RecipeEditModal
+              recipe={editForm || selectedRecipe}
+              onSave={handleSaveEdit}
+              onCancel={cancelEditing}
+              isSaving={isSaving}
+            />
+          ) : (
+            <RecipeDetailModal
+              recipe={selectedRecipe}
+              onClose={closeRecipe}
+              onEdit={!selectedRecipe.ownerId ? startEditing : undefined}
+              onDelete={!selectedRecipe.ownerId ? (id, e) => handleDelete(e, id) : undefined}
+              isOwned={!selectedRecipe.ownerId}
+              onCopyToLibrary={selectedRecipe.ownerId ? async () => {
+                await handleCopyToMyLibrary({ stopPropagation: () => { } } as React.MouseEvent, selectedRecipe);
+              } : undefined}
+            />
+          )
+        )
+      }
+    </div >
   );
 };
