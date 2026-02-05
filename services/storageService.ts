@@ -1099,8 +1099,16 @@ export const migrateFromLocalStorage = async (force: boolean = false): Promise<{
   try {
     // Check if we already have data (unless forced)
     if (!force) {
+      // OPTIMIZATION: Check local cache first to avoid hanging on network requests during startup
+      // This is critical for users on restricted networks (e.g. Work Wi-Fi) where Firestore might time out
+      const cachedStats = getCachedUserStats();
+      if (cachedStats && cachedStats.currentWeight !== 0 && cachedStats.currentWeight !== DEFAULT_USER_STATS.currentWeight) {
+        console.log("Data exists in Local Cache, skipping migration.");
+        return { success: true };
+      }
+
+      // If no cache, try Firestore (this might hang if network is bad, but unavoidable for first run)
       const stats = await getUserStats();
-      // Simple check: if weight is not 0 (default), assume data exists
       if (stats.currentWeight !== 0 && stats.currentWeight !== DEFAULT_USER_STATS.currentWeight) {
         console.log("Data exists in Firestore, skipping migration.");
         return { success: true };

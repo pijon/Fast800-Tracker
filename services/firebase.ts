@@ -15,9 +15,22 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
+
+// Initialize Firestore with settings for specific network conditions
 export const db = initializeFirestore(app, {
-    ignoreUndefinedProperties: true
+    ignoreUndefinedProperties: true,
+    experimentalForceLongPolling: true, // Bypass firewalls that block WebSockets
 });
+
+import { enableMultiTabIndexedDbPersistence } from 'firebase/firestore';
+enableMultiTabIndexedDbPersistence(db).catch((err) => {
+    if (err.code == 'failed-precondition') {
+        console.warn('Persistence failed: Multiple tabs open');
+    } else if (err.code == 'unimplemented') {
+        console.warn('Persistence failed: Browser not supported');
+    }
+});
+
 export const storage = getStorage(app);
 
 export default app;

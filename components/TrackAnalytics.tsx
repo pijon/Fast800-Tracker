@@ -50,6 +50,8 @@ export const TrackAnalytics: React.FC<TrackAnalyticsProps> = ({ stats, dailyLog,
     }, [dailyLog, stats]);
 
     // Calculate enhanced analytics
+    const weightAnalysis = useMemo(() => analyzeWeightTrends(stats), [stats]);
+    const analysisDaysToGoal = weightAnalysis.daysToGoal;
 
 
     // Weight chart data with projected trend line
@@ -196,6 +198,55 @@ export const TrackAnalytics: React.FC<TrackAnalyticsProps> = ({ stats, dailyLog,
                                 </div>
                             </div>
                         </div>
+
+                        {/* Projection Stats Grid - Only visible when Projection is enabled */}
+                        {showProjection && (
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                                {/* Total Lost */}
+                                <div className="bg-white/50 dark:bg-white/5 backdrop-blur-sm rounded-2xl p-4 border border-charcoal/10 dark:border-white/10">
+                                    <div className="text-xs font-bold text-charcoal/60 dark:text-stone-400 uppercase tracking-wider mb-1">
+                                        Total Lost
+                                    </div>
+                                    <div className="text-2xl font-bold text-primary">
+                                        {weightAnalysis.totalLoss > 0 ? weightAnalysis.totalLoss.toFixed(1) : '0.0'} <span className="text-sm font-normal text-charcoal/60 dark:text-stone-400">kg</span>
+                                    </div>
+                                </div>
+
+                                {/* Est. Time */}
+                                <div className="bg-white/50 dark:bg-white/5 backdrop-blur-sm rounded-2xl p-4 border border-charcoal/10 dark:border-white/10">
+                                    <div className="text-xs font-bold text-charcoal/60 dark:text-stone-400 uppercase tracking-wider mb-1">
+                                        {weightAnalysis.remainingLoss <= 0 ? 'Status' : 'Est. Time'}
+                                    </div>
+                                    <div className="text-2xl font-bold text-hearth">
+                                        {weightAnalysis.remainingLoss <= 0 ? (
+                                            <span className="text-secondary">Goal Met!</span>
+                                        ) : (analysisDaysToGoal ? (
+                                            <div className="flex flex-col">
+                                                <span>
+                                                    {analysisDaysToGoal} <span className="text-sm font-normal text-charcoal/60 dark:text-stone-400">days</span>
+                                                </span>
+                                                <span className="text-xs font-normal text-charcoal/40 dark:text-stone-500 mt-0.5">
+                                                    ~{(weightAnalysis.projectedDailyRate * 7).toFixed(1)} kg / week
+                                                </span>
+                                            </div>
+                                        ) : (
+                                            <span className="text-sm font-normal text-charcoal/60 dark:text-stone-400">Collecting data...</span>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Remaining */}
+                                <div className="bg-white/50 dark:bg-white/5 backdrop-blur-sm rounded-2xl p-4 border border-charcoal/10 dark:border-white/10">
+                                    <div className="text-xs font-bold text-charcoal/60 dark:text-stone-400 uppercase tracking-wider mb-1">
+                                        {weightAnalysis.remainingLoss <= 0 ? 'Current Status' : 'Remaining'}
+                                    </div>
+                                    <div className="text-2xl font-bold text-charcoal dark:text-stone-200">
+                                        {weightAnalysis.remainingLoss > 0 ? weightAnalysis.remainingLoss.toFixed(1) : '0.0'} <span className="text-sm font-normal text-charcoal/60 dark:text-stone-400">kg</span>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                         {weightChartData.length === 0 ? (
                             <div className="h-48 md:h-56 flex flex-col items-center justify-center gap-2">
                                 <span className="text-3xl">⚖️</span>

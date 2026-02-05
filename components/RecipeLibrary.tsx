@@ -69,17 +69,19 @@ export const RecipeLibrary: React.FC<RecipeLibraryProps> = ({ onSelect }) => {
 
     setIsLoading(true);
     try {
-      // Initial load: 24 items (enough for 1080p screen without scrolling too much)
-      // Full load: fetch all
       const limit = (loadAll || hasLoadedAll) ? undefined : 24;
-      const userRecipes = await getRecipes(limit);
 
+      // Parallelize: Fetch Own Recipes AND (Group + Family Recipes)
+      const [userRecipes, group] = await Promise.all([
+        getRecipes(limit),
+        getUserGroup()
+      ]);
+
+      // Set user recipes immediately
       if (loadAll) {
         setHasLoadedAll(true);
         setRecipes(userRecipes);
       } else {
-        // If we asked for 24 and got 24, there might be more.
-        // If we got less than 24, we definitely have all.
         if (userRecipes.length < 24) {
           setHasLoadedAll(true);
         } else {
@@ -88,14 +90,16 @@ export const RecipeLibrary: React.FC<RecipeLibraryProps> = ({ onSelect }) => {
         setRecipes(userRecipes);
       }
 
-      const group = await getUserGroup();
       setUserGroup(group);
+
       if (group) {
-        const familyRecipes = await getFamilyMemberRecipes();
+        // Now fetch family recipes using the group we just got
+        // We pass the group object to avoid re-fetching it inside the service
+        const familyRecipes = await getFamilyMemberRecipes(group);
         setFamilyRecipes(familyRecipes);
       }
     } catch (e) {
-      console.error("Failed to load group data:", e);
+      console.error("Failed to load recipe data:", e);
     } finally {
       setIsLoading(false);
     }

@@ -136,38 +136,50 @@ export const getGroupMembersDetails = async (memberIds: string[]): Promise<{ id:
 
 // --- Family Recipe Visibility ---
 
-export const getFamilyMemberRecipes = async (): Promise<Recipe[]> => {
+export const getFamilyMemberRecipes = async (providedGroup?: Group | null): Promise<Recipe[]> => {
     const user = getCurrentUser();
-    const group = await getUserGroup();
+    const group = providedGroup !== undefined ? providedGroup : await getUserGroup();
 
     if (!group) return [];
 
     // Get member details for names
-    const memberDetails = await getGroupMembersDetails(group.memberIds);
+    // Optimization: getGroupMembersDetails also does fetching.
+    // If we only need names for the recipes, we might be able to get them from the recipe itself
+    // BUT the data model says `ownerName` is on the recipe.
+    // However, the previous code fetched member details to Populate `ownerName` map.
+    // Let's keep that but parallelize it too if possible, distinct from recipe fetching.
+
+    // We can fetch details AND recipes in parallel.
+
+    const [memberDetails, memberRecipesResults] = await Promise.all([
+        getGroupMembersDetails(group.memberIds),
+        Promise.all(
+            group.memberIds
+                .filter(mid => mid !== user.uid)
+                .map(async (memberId) => {
+                    try {
+                        const recipesRef = collection(db, "users", memberId, "recipes");
+                        const snapshot = await getDocs(recipesRef);
+                        return snapshot.docs.map(doc => ({
+                            ...doc.data() as Recipe,
+                            ownerId: memberId,
+                            // We will fill ownerName after we get the details mapping
+                        }));
+                    } catch (e) {
+                        console.error(`Failed to fetch recipes for member ${memberId}:`, e);
+                        return [];
+                    }
+                })
+        )
+    ]);
+
     const memberNameMap = new Map(memberDetails.map(m => [m.id, m.name]));
 
-    const allFamilyRecipes: Recipe[] = [];
-
-    // Fetch recipes from each family member (except self)
-    for (const memberId of group.memberIds) {
-        if (memberId === user.uid) continue; // Skip own recipes
-
-        try {
-            const recipesRef = collection(db, "users", memberId, "recipes");
-            const snapshot = await getDocs(recipesRef);
-
-            const memberRecipes = snapshot.docs.map(doc => ({
-                ...doc.data() as Recipe,
-                ownerId: memberId,
-                ownerName: memberNameMap.get(memberId) || "Family Member"
-            }));
-
-            allFamilyRecipes.push(...memberRecipes);
-        } catch (e) {
-            console.error(`Failed to fetch recipes for member ${memberId}:`, e);
-            // Continue with other members
-        }
-    }
+    // Flatten and enrich with names
+    const allFamilyRecipes = memberRecipesResults.flat().map(recipe => ({
+        ...recipe,
+        ownerName: recipe.ownerId ? (memberNameMap.get(recipe.ownerId) || "Family Member") : "Family Member"
+    }));
 
     return allFamilyRecipes;
 };

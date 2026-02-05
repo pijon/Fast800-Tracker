@@ -133,12 +133,12 @@ export function analyzeWeightTrends(stats: UserStats): WeightAnalysis {
 
     if (daysDiff >= 3) { // At least 3 days of data
 
-      // Filter for recent history (last 30 days) to reflect current trend
+      // Filter for recent history (last 7 days) to reflect current trend
       // rather than all-time average which might be outdated
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-      let recentHistory = sortedHistory.filter(entry => new Date(entry.date) >= thirtyDaysAgo);
+      let recentHistory = sortedHistory.filter(entry => new Date(entry.date) >= sevenDaysAgo);
 
       // Fallback to full history if insufficient recent data (need at least 3 points for meaningful trend)
       // Check if recent history covers enough time span (at least 3 days span)
