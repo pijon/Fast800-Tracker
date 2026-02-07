@@ -190,6 +190,7 @@ export interface DailySummary {
   caloriesBurned: number;
   netCalories: number;
   workoutCount: number;
+  workoutTypes?: string[]; // List of workout types (e.g. ["Walking", "HIIT"])
   waterIntake?: number; // in ml
   maxFastingHours?: number; // Fasting hours achieved
 }

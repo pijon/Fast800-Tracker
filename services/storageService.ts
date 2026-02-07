@@ -1265,6 +1265,7 @@ export const archiveYesterdaysLog = async (): Promise<{ archived: boolean; date?
     // 3. Compute summary
     const caloriesConsumed = log.items.reduce((sum, item) => sum + item.calories, 0);
     const caloriesBurned = log.workouts.reduce((sum, w) => sum + w.caloriesBurned, 0);
+    const workoutTypes = Array.from(new Set(log.workouts.map(w => w.type)));
 
     const summary: DailySummary = {
       date: dateStr,
@@ -1272,6 +1273,7 @@ export const archiveYesterdaysLog = async (): Promise<{ archived: boolean; date?
       caloriesBurned,
       netCalories: caloriesConsumed - caloriesBurned,
       workoutCount: log.workouts.length,
+      workoutTypes,
       waterIntake: log.waterIntake,
       maxFastingHours: log.maxFastingHours
     };
@@ -1328,6 +1330,7 @@ export const getDailySummaries = async (daysBack: number = 90): Promise<DailySum
       if (!summariesMap.has(log.date)) {
         const caloriesConsumed = (log.items || []).reduce((sum, item) => sum + item.calories, 0);
         const caloriesBurned = (log.workouts || []).reduce((sum, w) => sum + w.caloriesBurned, 0);
+        const workoutTypes = Array.from(new Set((log.workouts || []).map(w => w.type)));
 
         summariesMap.set(log.date, {
           date: log.date,
@@ -1335,6 +1338,7 @@ export const getDailySummaries = async (daysBack: number = 90): Promise<DailySum
           caloriesBurned,
           netCalories: caloriesConsumed - caloriesBurned,
           workoutCount: (log.workouts || []).length,
+          workoutTypes,
           waterIntake: log.waterIntake || 0,
           maxFastingHours: log.maxFastingHours || 0
         });
@@ -1378,6 +1382,7 @@ export const migrateAllLogsToSummaries = async (): Promise<{ success: boolean; m
       // Compute and save summary
       const caloriesConsumed = (log.items || []).reduce((sum, item) => sum + item.calories, 0);
       const caloriesBurned = (log.workouts || []).reduce((sum, w) => sum + w.caloriesBurned, 0);
+      const workoutTypes = Array.from(new Set((log.workouts || []).map(w => w.type)));
 
       const summary: DailySummary = {
         date: log.date,
@@ -1385,6 +1390,7 @@ export const migrateAllLogsToSummaries = async (): Promise<{ success: boolean; m
         caloriesBurned,
         netCalories: caloriesConsumed - caloriesBurned,
         workoutCount: (log.workouts || []).length,
+        workoutTypes,
         waterIntake: log.waterIntake || 0,
         maxFastingHours: log.maxFastingHours || 0
       };

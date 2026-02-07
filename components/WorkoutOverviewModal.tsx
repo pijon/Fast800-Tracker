@@ -172,7 +172,11 @@ export const WorkoutOverviewModal: React.FC<WorkoutOverviewModalProps> = ({
                                                         <span className="text-sm font-bold text-charcoal dark:text-stone-200">{new Date(summary.date).getDate()}</span>
                                                     </div>
                                                     <div>
-                                                        <p className="font-medium text-charcoal dark:text-stone-200">{summary.workoutCount} Workout{summary.workoutCount !== 1 ? 's' : ''}</p>
+                                                        <p className="font-medium text-charcoal dark:text-stone-200">{
+                                                            summary.workoutTypes && summary.workoutTypes.length > 0
+                                                                ? summary.workoutTypes.join(', ')
+                                                                : `${summary.workoutCount} Workout${summary.workoutCount !== 1 ? 's' : ''}`
+                                                        }</p>
                                                         <p className="text-xs text-muted">Daily Summary</p>
                                                     </div>
                                                 </div>
