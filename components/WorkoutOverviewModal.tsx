@@ -39,7 +39,7 @@ export const WorkoutOverviewModal: React.FC<WorkoutOverviewModalProps> = ({
     return (
         <Portal>
             <div
-                className="fixed inset-0 z-[100] flex items-center justify-center bg-stone-900/40 backdrop-blur-sm px-4 py-4 animate-fade-in"
+                className="fixed inset-0 z-[100] flex items-center justify-center bg-stone-900/60 backdrop-blur-sm px-4 py-4 animate-fade-in"
                 onClick={onClose}
             >
                 <div
@@ -47,7 +47,7 @@ export const WorkoutOverviewModal: React.FC<WorkoutOverviewModalProps> = ({
                     onClick={e => e.stopPropagation()}
                 >
                     {/* Header */}
-                    <div className="p-6 border-b border-border bg-white/50 dark:bg-black/20 shrink-0">
+                    <div className="p-6 border-b border-border bg-white/50 dark:bg-white/5 shrink-0">
                         <div className="flex justify-between items-start">
                             <div>
                                 <h2 className="text-2xl font-bold text-charcoal dark:text-stone-200 font-serif flex items-center gap-2">
