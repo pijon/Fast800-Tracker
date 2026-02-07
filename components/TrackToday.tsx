@@ -8,6 +8,7 @@ import { WorkoutEntryModal } from './WorkoutEntryModal';
 import { DualTrackSection } from './DualTrackSection';
 import { HearthWidget } from './HearthWidget';
 import { ActivityCard, FastingCard, HydrationCard, WeightCard, CaloriesRemainingCard } from './BentoGrid';
+import { WorkoutOverviewModal } from './WorkoutOverviewModal';
 // import { MobileActionCards } from './MobileActionCards';
 // Lazy load RecipeLibrary
 const RecipeLibrary = React.lazy(() => import('./RecipeLibrary').then(module => ({ default: module.RecipeLibrary })));
@@ -70,6 +71,7 @@ export const TrackToday: React.FC<TrackTodayProps> = ({
 
   const [quickWeightInput, setQuickWeightInput] = useState(stats.currentWeight.toString());
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
+  const [isWorkoutOverviewOpen, setIsWorkoutOverviewOpen] = useState(false);
   // const [recentWorkouts, setRecentWorkouts] = useState<WorkoutItem[]>([]); // Moved to App.tsx
 
   // Meal Swap State
@@ -275,6 +277,7 @@ export const TrackToday: React.FC<TrackTodayProps> = ({
           workoutsGoal={stats.dailyWorkoutCountGoal || 1}
           history={effectiveHistory}
           onAddWorkout={() => onOpenWorkoutModal()}
+          onClick={() => setIsWorkoutOverviewOpen(true)}
           size="sm"
           streak={analyzeActivityStreaks(effectiveHistory).currentStreak}
         />
@@ -338,6 +341,7 @@ export const TrackToday: React.FC<TrackTodayProps> = ({
               workoutsGoal={stats.dailyWorkoutCountGoal || 1}
               history={effectiveHistory}
               onAddWorkout={() => onOpenWorkoutModal()}
+              onClick={() => setIsWorkoutOverviewOpen(true)}
               streak={analyzeActivityStreaks(effectiveHistory).currentStreak}
             />
             <div className="grid grid-cols-2 gap-4">
@@ -439,6 +443,14 @@ export const TrackToday: React.FC<TrackTodayProps> = ({
           onClose={() => setSelectedRecipe(null)}
         />
       )}
+
+      <WorkoutOverviewModal
+        isOpen={isWorkoutOverviewOpen}
+        onClose={() => setIsWorkoutOverviewOpen(false)}
+        history={effectiveHistory}
+        todayWorkouts={dailyLog.workouts || []}
+        streak={analyzeActivityStreaks(effectiveHistory).currentStreak}
+      />
 
       {isMealSelectorOpen && (
         <Portal>

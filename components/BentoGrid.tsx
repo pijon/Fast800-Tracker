@@ -5,8 +5,8 @@ import { StreakFlame } from './StreakFlame';
 
 // --- Sub-components for Bento Grid ---
 
-export const ActivityCard: React.FC<{ caloriesBurned: number; workoutsCompleted: number; workoutsGoal: number; history?: DailySummary[]; onAddWorkout: () => void; size?: 'sm' | 'md'; streak?: number }> = ({
-    caloriesBurned, workoutsCompleted, workoutsGoal, history = [], onAddWorkout, size = 'md', streak = 0
+export const ActivityCard: React.FC<{ caloriesBurned: number; workoutsCompleted: number; workoutsGoal: number; history?: DailySummary[]; onAddWorkout: () => void; onClick?: () => void; size?: 'sm' | 'md'; streak?: number }> = ({
+    caloriesBurned, workoutsCompleted, workoutsGoal, history = [], onAddWorkout, onClick, size = 'md', streak = 0
 }) => {
     // Calculate Streak (Uses prop now)
     const currentStreak = streak;
@@ -20,7 +20,10 @@ export const ActivityCard: React.FC<{ caloriesBurned: number; workoutsCompleted:
     const TrophyClass = isActive ? "text-flame drop-shadow-md" : "text-charcoal/10 dark:text-white/5";
 
     return (
-        <div className={`glass-card p-4 md:p-6 rounded-3xl flex flex-col justify-between ${size === 'sm' ? 'min-h-[160px]' : 'h-56'} group cursor-pointer hover:scale-[1.01] hover:shadow-xl dark:hover:border-white/20 transition-all duration-300 relative overflow-hidden`}>
+        <div
+            onClick={onClick}
+            className={`glass-card p-4 md:p-6 rounded-3xl flex flex-col justify-between ${size === 'sm' ? 'min-h-[160px]' : 'h-56'} group ${onClick ? 'cursor-pointer hover:bg-white/5 active:scale-[0.98]' : ''} hover:scale-[1.01] hover:shadow-xl dark:hover:border-white/20 transition-all duration-300 relative overflow-hidden`}
+        >
             {/* Gradient Defs */}
             <svg width="0" height="0" className="absolute">
                 <defs>
