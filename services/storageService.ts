@@ -1,4 +1,5 @@
 import { Recipe, DayPlan, UserStats, ShoppingState, DailyLog, PantryInventory, EnhancedShoppingState, FastingState, FastingEntry, DailySummary, WorkoutItem, PlannedMeal, RecipeReference, CustomMealInstance } from "../types";
+import { getCacheKey, saveToCache, getFromCache, getCachedDayPlan, getCachedDailyLog, getCachedUserStats, getCachedFastingState } from "../utils/cacheService";
 import { getUserGroup, getGroupMembersDetails } from "./groupService";
 import { DEFAULT_USER_STATS } from "../constants";
 import { auth, db } from "./firebase";
@@ -17,32 +18,9 @@ const getCollectionRef = (name: string) => collection(db, 'users', getUserId(), 
 const getDocRef = (collectionName: string, docId: string) => doc(db, 'users', getUserId(), collectionName, docId);
 
 // --- Local Caching Helpers (SWR Strategy) ---
-const CACHE_PREFIX = 'fast800_cache_';
-
-const getCacheKey = (type: string, id?: string) => `${CACHE_PREFIX}${type}${id ? `_${id}` : ''}`;
-
-const getFromCache = <T>(key: string): T | null => {
-  try {
-    const item = localStorage.getItem(key);
-    return item ? JSON.parse(item) : null;
-  } catch (e) {
-    console.warn(`Error reading cache for ${key}`, e);
-    return null;
-  }
-};
-
-const saveToCache = <T>(key: string, data: T) => {
-  try {
-    localStorage.setItem(key, JSON.stringify(data));
-  } catch (e) {
-    console.warn(`Error saving cache for ${key}`, e);
-  }
-};
-
-export const getCachedDayPlan = (date: string): DayPlan | null => getFromCache<DayPlan>(getCacheKey('dayPlan', date));
-export const getCachedDailyLog = (date: string): DailyLog | null => getFromCache<DailyLog>(getCacheKey('dailyLog', date));
-export const getCachedUserStats = (): UserStats | null => getFromCache<UserStats>(getCacheKey('stats'));
-export const getCachedFastingState = (): FastingState | null => getFromCache<FastingState>(getCacheKey('fasting'));
+// --- Local Caching Helpers (SWR Strategy) ---
+// Delegated to utils/cacheService.ts
+export { getCachedDayPlan, getCachedDailyLog, getCachedUserStats, getCachedFastingState };
 
 export const getUserData = async () => {
   const userDoc = await getDoc(getUserRef());
@@ -52,7 +30,7 @@ export const getUserData = async () => {
 // --- Recipes ---
 // Saved as individual documents in 'recipes' collection
 // Saved as individual documents in 'recipes' collection
-const getCachedRecipes = (): Recipe[] | null => getFromCache<Recipe[]>(getCacheKey('recipes'));
+// Saved as individual documents in 'recipes' collection
 
 export const getRecipes = async (limitCount?: number): Promise<Recipe[]> => {
   try {

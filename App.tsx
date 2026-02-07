@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AppView, DayPlan, UserStats, DailyLog, FoodLogItem, WorkoutItem, Recipe, FastingState, FastingConfig } from './types';
 import { getDayPlan, getUserStats, saveUserStats, getDailyLog, saveDailyLog, exportAllData, importAllData, getFastingState, saveFastingState, addFastingEntry, migrateFromLocalStorage, getLocalStorageDebugInfo } from './services/storageService';
+import * as cache from './utils/cacheService';
 // Lazy load non-critical components for performance
 const TrackAnalytics = React.lazy(() => import('./components/TrackAnalytics').then(module => ({ default: module.TrackAnalytics })));
 const Planner = React.lazy(() => import('./components/Planner').then(module => ({ default: module.Planner })));
@@ -92,8 +93,16 @@ const TrackerApp: React.FC = () => {
         navigate(routes[newView] || '/today');
     };
 
-    const [todayPlan, setTodayPlan] = useState<DayPlan>({ date: '', meals: [], completedMealIds: [] });
-    const [tomorrowPlan, setTomorrowPlan] = useState<DayPlan>({ date: '', meals: [], completedMealIds: [] });
+    const [todayPlan, setTodayPlan] = useState<DayPlan>(() => {
+        const date = new Date().toISOString().split('T')[0];
+        return cache.getCachedDayPlan(date) || { date, meals: [], completedMealIds: [] };
+    });
+    const [tomorrowPlan, setTomorrowPlan] = useState<DayPlan>(() => {
+        const d = new Date();
+        d.setDate(d.getDate() + 1);
+        const date = d.toISOString().split('T')[0];
+        return cache.getCachedDayPlan(date) || { date, meals: [], completedMealIds: [] };
+    });
 
     // Global Modal State
     const [isFoodModalOpen, setIsFoodModalOpen] = useState(false);
@@ -103,9 +112,9 @@ const TrackerApp: React.FC = () => {
     const [editingWorkout, setEditingWorkout] = useState<WorkoutItem | null>(null);
     const [recentWorkouts, setRecentWorkouts] = useState<WorkoutItem[]>([]);
 
-    const [userStats, setUserStatsState] = useState<UserStats>(DEFAULT_USER_STATS);
+    const [userStats, setUserStatsState] = useState<UserStats>(() => cache.getCachedUserStats() || DEFAULT_USER_STATS);
     const [showOnboarding, setShowOnboarding] = useState(false);
-    const [isInitializing, setIsInitializing] = useState(true);
+    // Removed isInitializing to allow instant rendering from cache
 
     const [isDarkMode, setIsDarkMode] = useState(() => {
         const saved = localStorage.getItem('fast800_darkMode');
@@ -115,10 +124,11 @@ const TrackerApp: React.FC = () => {
         return window.matchMedia('(prefers-color-scheme: dark)').matches;
     });
 
-    const [fastingState, setFastingState] = useState<FastingState>({
+    const [fastingState, setFastingState] = useState<FastingState>(() => cache.getCachedFastingState() || {
         lastAteTime: null,
         config: { protocol: '16:8', targetFastHours: 16 }
     });
+
 
     // Dark mode effect
     useEffect(() => {
@@ -132,7 +142,10 @@ const TrackerApp: React.FC = () => {
 
     const toggleDarkMode = () => setIsDarkMode(!isDarkMode);
 
-    const [dailyLog, setDailyLog] = useState<DailyLog>({ date: '', items: [] });
+    const [dailyLog, setDailyLog] = useState<DailyLog>(() => {
+        const date = new Date().toISOString().split('T')[0];
+        return cache.getCachedDailyLog(date) || { date, items: [] };
+    });
 
     useEffect(() => {
         // Load recent workouts for suggestion
@@ -191,34 +204,15 @@ const TrackerApp: React.FC = () => {
     }, [refreshData]); // Re-attach if refreshData changes (it changes when date changes)
 
 
+    // Background SWR Refresh
     useEffect(() => {
         const init = async () => {
+            // Only run migration and refresh, no blocking UI
             try {
-                // SWR Strategy: Load from cache immediately
-                const { getCachedDayPlan, getCachedUserStats, getCachedDailyLog, getCachedFastingState } = await import('./services/storageService');
-
-                const cachedToday = getCachedDayPlan(todayDate);
-                const cachedTomorrow = getCachedDayPlan(tomorrowDate);
-                const cachedStats = getCachedUserStats();
-                const cachedLog = getCachedDailyLog(todayDate);
-                const cachedFasting = getCachedFastingState();
-
-                if (cachedToday) setTodayPlan(cachedToday);
-                if (cachedTomorrow) setTomorrowPlan(cachedTomorrow);
-                if (cachedStats) {
-                    setUserStatsState(prev => ({ ...prev, ...cachedStats, weightHistory: cachedStats.weightHistory || [] }));
-                }
-                if (cachedLog) setDailyLog(cachedLog);
-                if (cachedFasting) setFastingState(cachedFasting);
-
-                setIsInitializing(false); // Show UI immediately if we have cache
-
                 await migrateFromLocalStorage();
-                await refreshData(); // Background refresh
-            } catch (error) {
-                console.error("Initialization error", error);
-            } finally {
-                setIsInitializing(false);
+                await refreshData();
+            } catch (e) {
+                console.error("Background refresh failed", e);
             }
         };
         init();
@@ -518,9 +512,7 @@ const TrackerApp: React.FC = () => {
 
     const headerInfo = getHeaderInfo();
 
-    if (isInitializing) {
-        return <LoadingScreen />;
-    }
+
 
     return (
         <div className="min-h-screen md:flex font-sans">
@@ -700,53 +692,8 @@ export const App: React.FC = () => {
         }
     }, []);
 
+    // Removed Hard Version Check to allow Service Worker to handle updates gracefully
 
-    // Hard Version Check
-    useEffect(() => {
-        const checkVersion = async () => {
-            // Only run in production
-            if (import.meta.env.DEV) return;
-
-            try {
-                // Fetch the version.json with a cache-busting timestamp
-                const res = await fetch(`/version.json?t=${Date.now()}`);
-                if (!res.ok) return;
-
-                const remoteVersion = await res.json();
-                const localVersion = localStorage.getItem('vesta_version');
-
-                if (localVersion && JSON.parse(localVersion).hash !== remoteVersion.hash) {
-                    console.log('New version detected. Reloading...');
-                    localStorage.setItem('vesta_version', JSON.stringify(remoteVersion));
-
-                    // Unregister service workers 
-                    if ('serviceWorker' in navigator) {
-                        const registations = await navigator.serviceWorker.getRegistrations();
-                        for (let registration of registations) {
-                            await registration.unregister();
-                        }
-                    }
-
-                    // Force hard reload
-                    window.location.reload();
-                } else if (!localVersion) {
-                    // First run with versioning, just set it
-                    localStorage.setItem('vesta_version', JSON.stringify(remoteVersion));
-                }
-            } catch (err) {
-                console.error("Version check failed", err);
-            }
-        };
-
-        // Check on mount and on visibility change
-        checkVersion();
-        const handleVisibilityDetails = () => {
-            if (document.visibilityState === 'visible') checkVersion();
-        };
-
-        document.addEventListener('visibilitychange', handleVisibilityDetails);
-        return () => document.removeEventListener('visibilitychange', handleVisibilityDetails);
-    }, []);
 
     return (
         <AuthProvider>
