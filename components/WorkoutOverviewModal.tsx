@@ -47,7 +47,7 @@ export const WorkoutOverviewModal: React.FC<WorkoutOverviewModalProps> = ({
                     onClick={e => e.stopPropagation()}
                 >
                     {/* Header */}
-                    <div className="p-6 border-b border-border bg-white/50 dark:bg-white/5 shrink-0">
+                    <div className="p-6 border-b border-border/50 shrink-0">
                         <div className="flex justify-between items-start">
                             <div>
                                 <h2 className="text-2xl font-bold text-charcoal dark:text-stone-200 font-serif flex items-center gap-2">
