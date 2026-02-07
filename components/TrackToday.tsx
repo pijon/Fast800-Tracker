@@ -412,21 +412,21 @@ export const TrackToday: React.FC<TrackTodayProps> = ({
         </div>
         <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {tomorrowPlan.meals.length === 0 ? (
-            <div className="col-span-full p-8 text-center text-charcoal/60 dark:text-stone-400 dark:text-stone-500 border border-dashed border-charcoal/10 dark:border-white/10 rounded-xl bg-white/20 dark:bg-white/5">
+            <div className="col-span-full p-8 text-center text-charcoal/60 dark:text-stone-400 border border-dashed border-charcoal/10 dark:border-white/5 rounded-xl bg-white/20 dark:bg-white/5 backdrop-blur-sm">
               <p className="font-medium">No meals planned for tomorrow</p>
             </div>
           ) : (
             tomorrowPlan.meals.map((meal, index) => (
               <div
                 key={index}
-                className="p-4 rounded-xl border border-white/40 dark:border-white/5 bg-white/40 dark:bg-white/5 hover:bg-white/60 dark:hover:bg-white/10 hover:shadow-md transition-all group"
+                className="p-4 rounded-xl border border-white/40 dark:border-white/5 bg-white/40 dark:bg-white/5 backdrop-blur-sm hover:bg-white/60 dark:hover:bg-white/10 hover:shadow-md transition-all group"
               >
-                <p className="font-medium text-charcoal dark:text-stone-200 dark:text-stone-200 truncate">{meal.name}</p>
+                <p className="font-medium text-charcoal dark:text-stone-200 truncate">{meal.name}</p>
                 <div className="flex gap-2 items-center mt-2">
                   <span className="text-[10px] font-bold text-hearth bg-calories-bg px-1.5 py-0.5 rounded uppercase tracking-wide">
                     {meal.type}
                   </span>
-                  <span className="text-xs text-charcoal/60 dark:text-stone-400 dark:text-stone-400">{meal.calories} kcal</span>
+                  <span className="text-xs text-charcoal/60 dark:text-stone-400">{meal.calories} kcal</span>
                 </div>
               </div>
             ))

@@ -423,12 +423,12 @@ export const TrackAnalytics: React.FC<TrackAnalyticsProps> = ({ stats, dailyLog,
                     <div className="">
                         <h4 className="text-lg font-serif font-normal text-charcoal dark:text-stone-200 mb-4">Workout Activity Pattern</h4>
                         {formattedWorkoutData.length === 0 ? (
-                            <div className="h-48 md:h-56 flex flex-col items-center justify-center gap-2">
+                            <div className="bg-white/50 dark:bg-white/5 backdrop-blur-sm rounded-2xl p-4 border border-charcoal/10 dark:border-white/10 h-48 md:h-56 flex flex-col items-center justify-center gap-2">
                                 <span className="text-3xl">💪</span>
                                 <p className="text-sm text-charcoal/60 dark:text-stone-400">Add workouts to see your activity</p>
                             </div>
                         ) : (
-                            <div className="h-48 md:h-56 w-full">
+                            <div className="bg-white/50 dark:bg-white/5 backdrop-blur-sm rounded-2xl p-4 border border-charcoal/10 dark:border-white/10 h-64 md:h-72 w-full">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={formattedWorkoutData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
@@ -452,7 +452,7 @@ export const TrackAnalytics: React.FC<TrackAnalyticsProps> = ({ stats, dailyLog,
                                         />
                                         <Bar
                                             dataKey="caloriesBurned"
-                                            fill="var(--workout)"
+                                            fill="var(--color-primary)"
                                             radius={[8, 8, 0, 0]}
                                             name="Calories Burned"
                                         />
