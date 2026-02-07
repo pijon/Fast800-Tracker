@@ -118,6 +118,30 @@ export const TrackToday: React.FC<TrackTodayProps> = ({
     loadHistory();
   }, [dailyLog.workouts]); // Reload when workouts change
 
+  // Merge current dailyLog into activityHistory for accurate real-time streak
+  const effectiveHistory = React.useMemo(() => {
+    // Create a map from history for easy lookup/override
+    const historyMap = new Map(activityHistory.map(s => [s.date, s]));
+
+    // Create summary from current dailyLog to ensure "Today" is up to date
+    const todaySummary: DailySummary = {
+      date: dailyLog.date,
+      caloriesConsumed: (dailyLog.items || []).reduce((sum, item) => sum + item.calories, 0),
+      caloriesBurned: (dailyLog.workouts || []).reduce((sum, w) => sum + w.caloriesBurned, 0),
+      netCalories: 0, // Calculated below
+      workoutCount: (dailyLog.workouts || []).length,
+      waterIntake: dailyLog.waterIntake,
+      maxFastingHours: dailyLog.maxFastingHours
+    };
+    todaySummary.netCalories = todaySummary.caloriesConsumed - todaySummary.caloriesBurned;
+
+    // Override/Add today's summary
+    historyMap.set(dailyLog.date, todaySummary);
+
+    // Return sorted array (descending by date)
+    return Array.from(historyMap.values()).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [activityHistory, dailyLog]);
+
   useEffect(() => {
     setQuickWeightInput(stats.currentWeight.toString());
   }, [stats.currentWeight]);
@@ -249,10 +273,10 @@ export const TrackToday: React.FC<TrackTodayProps> = ({
           caloriesBurned={caloriesBurned}
           workoutsCompleted={(dailyLog.workouts || []).length}
           workoutsGoal={stats.dailyWorkoutCountGoal || 1}
-          history={activityHistory}
+          history={effectiveHistory}
           onAddWorkout={() => onOpenWorkoutModal()}
           size="sm"
-          streak={analyzeActivityStreaks(activityHistory).currentStreak}
+          streak={analyzeActivityStreaks(effectiveHistory).currentStreak}
         />
         <HydrationCard
           liters={(dailyLog.waterIntake || 0) / 1000}
@@ -312,9 +336,9 @@ export const TrackToday: React.FC<TrackTodayProps> = ({
               caloriesBurned={caloriesBurned}
               workoutsCompleted={(dailyLog.workouts || []).length}
               workoutsGoal={stats.dailyWorkoutCountGoal || 1}
-              history={activityHistory}
+              history={effectiveHistory}
               onAddWorkout={() => onOpenWorkoutModal()}
-              streak={analyzeActivityStreaks(activityHistory).currentStreak}
+              streak={analyzeActivityStreaks(effectiveHistory).currentStreak}
             />
             <div className="grid grid-cols-2 gap-4">
               <CaloriesRemainingCard
