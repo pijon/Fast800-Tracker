@@ -305,140 +305,31 @@ export function analyzeActivityStreaks(summaries: DailySummary[]): StreakAnalysi
     };
   }
 
-  // Sort by date descending (most recent first)
-  const sorted = [...summaries].sort((a, b) =>
-    new Date(b.date).getTime() - new Date(a.date).getTime()
-  );
-
-  let currentStreak = 0;
-  let longestStreak = 0;
-  let tempStreak = 0;
-  let totalActiveDays = 0;
-  let lastStreakEndDate: string | null = null;
-
-  // Calculate current streak (from today backwards)
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  for (let i = 0; i < sorted.length; i++) {
-    const summary = sorted[i];
-    const summaryDate = new Date(summary.date);
-    summaryDate.setHours(0, 0, 0, 0);
-
-    // Active if calories burned > 0 OR workout count > 0
-    const isActive = summary.caloriesBurned > 0 || summary.workoutCount > 0;
-
-    if (isActive) {
-      totalActiveDays++;
-    }
-
-    // For current streak, check consecutive days from today
-    if (i === 0 || currentStreak > 0) {
-      const expectedDate = new Date(today);
-      expectedDate.setDate(expectedDate.getDate() - i);
-
-      // Allow skipping today if it's not over yet (streak holds from yesterday)
-      // But if today IS active, it increments.
-      const isToday = summaryDate.getTime() === today.getTime();
-
-      if (summaryDate.getTime() === expectedDate.getTime() && isActive) {
-        currentStreak++;
-      } else if (i === 0 && !isActive) {
-        // If today is index 0 and NOT active, we check if yesterday was active to maintain streak
-        // This requires looking ahead in the sorted array (which is backwards in time)
-        // Actually, standard streak logic usually allows today to be "pending".
-        // If today is not active, streak is 0 unless we treat today as optional.
-        // Let's stick to standard strict streak: if today not active, streak is 0? 
-        // OR: if today is not active, but yesterday was, streak = yesterday's streak.
-
-        // Correct Logic for "Pending Today":
-        // If top entry is today and not active -> streak starts from yesterday.
-        // If top entry is yesterday and active -> streak is alive.
-
-        // Our loop iterates days. If sorted[0] is today and inactive, we just continue to check sorted[1] (yesterday).
-        // BUT we need to match dates correctly.
-
-        // Adjusted Loop Logic for "Pending Today":
-        // We actually need to step through calendar days, looking for matching summaries.
-        // The current loop iterates *summaries*.
-
-        // SIMPLIFIED APPROACH:
-        // 1. Check if today is active. If yes, streak starts at 1.
-        // 2. If no, check if yesterday is active. If yes, streak starts at 1 (from yesterday).
-        // 3. Then continue backwards.
-      }
-    }
-  }
-
-  // Re-write standard streak algorithm to be robust
-  // 1. Map all dates to booleans
+  // Map all active dates for O(1) lookup
   const activityMap = new Map<string, boolean>();
-  sorted.forEach(s => {
+  let totalActiveDays = 0;
+
+  summaries.forEach(s => {
     if (s.caloriesBurned > 0 || s.workoutCount > 0) {
       activityMap.set(s.date, true);
+      totalActiveDays++;
     }
   });
 
-  let streak = 0;
-  let date = new Date();
-
-  // Check today
-  const todayStr = date.toISOString().split('T')[0];
-  if (activityMap.get(todayStr)) {
-    streak++;
-  }
-
-  // Check yesterday and backwards
-  // If today was active, we continue from yesterday.
-  // If today was NOT active, we verify if yesterday was active to maintain "current" streak (of yesterday).
-
-  // Actually, standard "current streak" usually means: consecutive days ending today or yesterday.
-
-  // Revised Loop:
-  let checkDate = new Date();
-  if (!activityMap.get(todayStr)) {
-    // If today is not active, maybe the streak ended yesterday?
-    checkDate.setDate(checkDate.getDate() - 1);
-  }
-
-  // Now count backwards from checkDate
-  while (true) {
-    const dateStr = checkDate.toISOString().split('T')[0];
-    // If we already counted today (because it was active), we don't count it again, 
-    // but my logic above separated them. 
-    // Let's do a clean linear scan from "End of Streak Candidate".
-
-    if (activityMap.get(dateStr)) {
-      // Avoid double counting today if we adjusted checkDate??
-      // No, if today was active, we started at today. 
-      // If today inactive, we started at yesterday.
-      // BUT: if today active, and we count it, next loop is yesterday.
-      // If today inactive, we start at yesterday.
-      // So we just need to decrement date at end of loop.
-
-      // Wait, if today is active (streak=1), we effectively counted today.
-      // The loop structure below depends on `checkDate`.
-
-      // Let's reset:
-      break; // Use the block below
-    }
-    break;
-  }
-
-  // CORRECT ALGORITHM:
-  currentStreak = 0;
+  // Calculate Current Streak
+  // Logic: Streak includes today if active. If not, it continues from yesterday.
+  let currentStreak = 0;
   let d = new Date();
   let dStr = d.toISOString().split('T')[0];
 
-  // If today is active, count it and move back.
+  // 1. Check Today
   if (activityMap.get(dStr)) {
     currentStreak++;
   }
 
-  // Move to yesterday
-  d.setDate(d.getDate() - 1);
+  // 2. Check Backwards from Yesterday
+  d.setDate(d.getDate() - 1); // Move to yesterday
 
-  // Keep going back
   while (true) {
     dStr = d.toISOString().split('T')[0];
     if (activityMap.get(dStr)) {
@@ -449,59 +340,45 @@ export function analyzeActivityStreaks(summaries: DailySummary[]): StreakAnalysi
     }
   }
 
-  // Validation: If today is NOT active, but yesterday WAS, current streak should be valid?
-  // The above logic: if today inactive -> streak=0 initially. Then loop checks yesterday.
-  // If yesterday active -> streak becomes 1? 
-  // NO. The above loop only increments if `activityMap.get` returns true.
+  // Calculate Longest Streak
+  // Iterate through the full date range of the summaries to handle gaps correctly
+  let longestStreak = 0;
 
-  // If today is NOT active, we usually want to show yesterday's streak.
-  // Modification:
-  if (!activityMap.get(todayStr)) {
-    // Reset and start from yesterday
-    currentStreak = 0;
-    d = new Date();
-    d.setDate(d.getDate() - 1); // Yesterday
+  if (summaries.length > 0) {
+    // Sort logic to find range
+    const sorted = [...summaries].sort((a, b) =>
+      new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
 
-    while (true) {
-      dStr = d.toISOString().split('T')[0];
-      if (activityMap.get(dStr)) {
-        currentStreak++;
-        d.setDate(d.getDate() - 1);
-      } else {
-        break;
-      }
-    }
-  }
+    const startDate = new Date(sorted[0].date);
+    const endDate = new Date(sorted[sorted.length - 1].date);
 
-  // Longest Streak Logic
-  longestStreak = 0;
-  tempStreak = 0;
-  // Iterate sorted summaries to find max consecutive
-  // Note: gaps in summaries mean NO activity (implied 0)
-  // We need to iterate strictly by DATE to catch gaps.
-  if (sorted.length > 0) {
-    const firstDate = new Date(sorted[sorted.length - 1].date);
-    const lastDate = new Date(sorted[0].date);
+    // We scan from start to end (or end to start, doesn't matter for max)
+    let tempStreak = 0;
+    const scanner = new Date(startDate);
 
-    const runner = new Date(lastDate);
-    while (runner >= firstDate) {
-      const s = runner.toISOString().split('T')[0];
+    while (scanner <= endDate) {
+      const s = scanner.toISOString().split('T')[0];
       if (activityMap.get(s)) {
         tempStreak++;
         longestStreak = Math.max(longestStreak, tempStreak);
       } else {
         tempStreak = 0;
       }
-      runner.setDate(runner.getDate() - 1);
+      scanner.setDate(scanner.getDate() + 1);
     }
+
+    // Edge case: Note that 'longest streak' based on summaries might be limited 
+    // if summaries has gaps where data just doesn't exist (not loaded). 
+    // But within loaded data, this is accurate.
   }
 
   return {
     currentStreak,
     longestStreak,
     totalCompliantDays: totalActiveDays,
-    complianceRate: (totalActiveDays / (summaries.length || 1)) * 100,
-    lastStreakEndDate
+    complianceRate: (totalActiveDays / summaries.length) * 100,
+    lastStreakEndDate: null // TODO: Calculate if needed
   };
 }
 /**

@@ -109,7 +109,7 @@ export const TrackToday: React.FC<TrackTodayProps> = ({
   useEffect(() => {
     const loadHistory = async () => {
       try {
-        const data = await getDailySummaries(7);
+        const data = await getDailySummaries(90);
         setActivityHistory(data);
       } catch (e) {
         console.error("Failed to load activity history", e);
