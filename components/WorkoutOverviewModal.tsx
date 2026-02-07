@@ -101,10 +101,16 @@ export const WorkoutOverviewModal: React.FC<WorkoutOverviewModalProps> = ({
                                         <div key={workout.id} className="flex items-center justify-between p-4 rounded-2xl bg-[var(--input-bg)] border border-border">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-10 h-10 rounded-full bg-workout/10 flex items-center justify-center text-workout">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                                                        <path d="M20.2 17.6l-2.7-11.5c-.5-2.2-2.9-3.4-5-2.6C9.9 4.4 7.6 6.8 7.3 10.1L6.7 15l-3.3 1.3c-.9.4-1.3 1.4-1 2.3.2.6.7 1 1.3 1.2l4.8 1.4c.5.1 1 .2 1.5.2 2 0 3.9-1 5-2.7l4.3-1.7c.9-.4 1.3-1.4 1-2.3-.2-.5-.6-.9-1.1-1.1z" />
-                                                        {/* Simple generic activity icon */}
-                                                    </svg>
+                                                    {workout.type.toLowerCase() === 'walking' ? (
+                                                        <svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
+                                                            <path d="M10.1 3A1.9 1.9 0 1 1 12 4.9 1.899 1.899 0 0 1 10.1 3zm6.257 13.26l-2.425-3.377-.293-5.403c-.067-1.287-1.823-1.449-3.401-1.579-.945 1.6-2.48 4.575-3.125 5.838a.721.721 0 0 0 .265.942.74.74 0 0 0 1.033-.264l2.104-3.72.258 4.338 3.47 4.144 1.724 4.858a1.088 1.088 0 0 0 2.081-.496.953.953 0 0 0-.03-.202c-.03-.113-1.66-5.078-1.66-5.078zm-6.014-2.18l1.581 1.887-.335 1.588-3.227 4.285a1.087 1.087 0 1 1-1.808-1.2l3.065-4.285zM18 10.936a.881.881 0 0 1-.824 1.51c-.611-.37-2.35-1.536-2.35-1.536l-.104-1.926z" />
+                                                            <path fill="none" d="M0 0h24v24H0z" />
+                                                        </svg>
+                                                    ) : (
+                                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                                            <path d="M20.2 17.6l-2.7-11.5c-.5-2.2-2.9-3.4-5-2.6C9.9 4.4 7.6 6.8 7.3 10.1L6.7 15l-3.3 1.3c-.9.4-1.3 1.4-1 2.3.2.6.7 1 1.3 1.2l4.8 1.4c.5.1 1 .2 1.5.2 2 0 3.9-1 5-2.7l4.3-1.7c.9-.4 1.3-1.4 1-2.3-.2-.5-.6-.9-1.1-1.1z" />
+                                                        </svg>
+                                                    )}
                                                 </div>
                                                 <div>
                                                     <p className="font-bold text-charcoal dark:text-stone-200">{workout.type}</p>
