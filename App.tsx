@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AppView, DayPlan, UserStats, DailyLog, FoodLogItem, WorkoutItem, Recipe, FastingState, FastingConfig } from './types';
@@ -30,6 +30,8 @@ import { ViewSkeleton } from './components/ViewSkeleton';
 
 
 
+
+const DARK_MODE_KEY = 'vesta_darkMode';
 
 const TrackerApp: React.FC = () => {
     const navigate = useNavigate();
@@ -117,7 +119,7 @@ const TrackerApp: React.FC = () => {
     // Removed isInitializing to allow instant rendering from cache
 
     const [isDarkMode, setIsDarkMode] = useState(() => {
-        const saved = localStorage.getItem('fast800_darkMode');
+        const saved = localStorage.getItem(DARK_MODE_KEY) ?? localStorage.getItem('fast800_darkMode');
         if (saved !== null) {
             return JSON.parse(saved);
         }
@@ -137,27 +139,51 @@ const TrackerApp: React.FC = () => {
         } else {
             document.documentElement.classList.remove('dark');
         }
-        localStorage.setItem('fast800_darkMode', JSON.stringify(isDarkMode));
+        localStorage.setItem(DARK_MODE_KEY, JSON.stringify(isDarkMode));
     }, [isDarkMode]);
 
     const toggleDarkMode = () => setIsDarkMode(!isDarkMode);
 
     const [dailyLog, setDailyLog] = useState<DailyLog>(() => {
         const date = new Date().toISOString().split('T')[0];
-        return cache.getCachedDailyLog(date) || { date, items: [] };
+        const cached = cache.getCachedDailyLog(date);
+        const merged: DailyLog = {
+            date,
+            items: [],
+            workouts: [],
+            waterIntake: 0,
+            ...(cached || {}),
+        };
+        merged.workouts = merged.workouts || [];
+        merged.waterIntake = typeof merged.waterIntake === 'number' ? merged.waterIntake : 0;
+        return merged;
     });
+    const dailyLogRef = useRef<DailyLog>(dailyLog);
+
+    const setDailyLogState = useCallback((nextLog: DailyLog) => {
+        dailyLogRef.current = nextLog;
+        setDailyLog(nextLog);
+    }, []);
+
+    const updateDailyLog = useCallback(async (updater: (current: DailyLog) => DailyLog) => {
+        const nextLog = updater(dailyLogRef.current);
+        setDailyLogState(nextLog);
+        await saveDailyLog(nextLog);
+        return nextLog;
+    }, [setDailyLogState]);
+
+    const loadRecentWorkouts = useCallback(async () => {
+        const { getRecentWorkouts } = await import('./services/storageService');
+        const recents = await getRecentWorkouts(5);
+        setRecentWorkouts(recents);
+    }, []);
 
     useEffect(() => {
-        // Load recent workouts for suggestion
-        const loadRecents = async () => {
-            const { getRecentWorkouts } = await import('./services/storageService');
-            const recents = await getRecentWorkouts(5);
-            setRecentWorkouts(recents);
-        };
-        loadRecents();
-    }, [dailyLog.workouts]);
+        // Load recent workouts for suggestion once on mount
+        loadRecentWorkouts();
+    }, [loadRecentWorkouts]);
 
-    const refreshData = async () => {
+    const refreshData = useCallback(async () => {
         try {
             const [today, tomorrow, stats, log, fasting] = await Promise.all([
                 getDayPlan(todayDate),
@@ -174,7 +200,7 @@ const TrackerApp: React.FC = () => {
             // (Assuming DEFAULT_USER_STATS has empty history, and existing users have history)
             const history = stats.weightHistory || [];
             setUserStatsState({ ...DEFAULT_USER_STATS, ...stats, weightHistory: history });
-            setDailyLog(log);
+            setDailyLogState(log);
             setFastingState(fasting);
 
             if (history.length === 0) {
@@ -183,7 +209,7 @@ const TrackerApp: React.FC = () => {
         } catch (error) {
             console.error("Failed to refresh data", error);
         }
-    };
+    }, [todayDate, tomorrowDate, setDailyLogState]);
 
     // Revalidate on focus (SWR)
     useEffect(() => {
@@ -237,7 +263,7 @@ const TrackerApp: React.FC = () => {
 
     const handleAddFoodLogItems = async (items: FoodLogItem[]) => {
         const now = Date.now();
-        let currentFastingMax = dailyLog.maxFastingHours || 0;
+        let currentFastingMax = dailyLogRef.current.maxFastingHours || 0;
 
         // Check active fast duration before breaking it
         if (fastingState.lastAteTime) {
@@ -247,49 +273,45 @@ const TrackerApp: React.FC = () => {
             }
         }
 
-        const updatedLog: DailyLog = {
-            ...dailyLog,
-            items: [...dailyLog.items, ...items],
+        await updateDailyLog((current) => ({
+            ...current,
+            items: [...current.items, ...items],
             maxFastingHours: currentFastingMax
-        };
-        setDailyLog(updatedLog);
-        await saveDailyLog(updatedLog);
+        }));
 
         // Update TRE tracking - food was just logged (this saves history)
         await updateLastAteTime(now);
     };
 
     const handleAddWorkout = async (workout: WorkoutItem) => {
-        const updatedLog: DailyLog = {
-            ...dailyLog,
-            workouts: [...(dailyLog.workouts || []), workout]
-        };
-        setDailyLog(updatedLog);
-        await saveDailyLog(updatedLog);
+        await updateDailyLog((current) => ({
+            ...current,
+            workouts: [...(current.workouts || []), workout]
+        }));
+        loadRecentWorkouts();
     };
 
     const handleUpdateWorkout = async (updatedWorkout: WorkoutItem) => {
-        const updatedLog: DailyLog = {
-            ...dailyLog,
-            workouts: (dailyLog.workouts || []).map(w => w.id === updatedWorkout.id ? updatedWorkout : w)
-        };
-        setDailyLog(updatedLog);
-        await saveDailyLog(updatedLog);
+        await updateDailyLog((current) => ({
+            ...current,
+            workouts: (current.workouts || []).map(w => w.id === updatedWorkout.id ? updatedWorkout : w)
+        }));
+        loadRecentWorkouts();
     };
 
     const handleDeleteWorkout = async (workoutId: string) => {
-        const updatedLog: DailyLog = {
-            ...dailyLog,
-            workouts: (dailyLog.workouts || []).filter(w => w.id !== workoutId)
-        };
-        setDailyLog(updatedLog);
-        await saveDailyLog(updatedLog);
+        await updateDailyLog((current) => ({
+            ...current,
+            workouts: (current.workouts || []).filter(w => w.id !== workoutId)
+        }));
+        loadRecentWorkouts();
     };
 
     const handleLogMeal = async (meal: Recipe, isAdding: boolean) => {
         // Use current state instead of fetching fresh to avoid extra DB read
-        let newItems = [...(dailyLog.items || [])];
-        let currentFastingMax = dailyLog.maxFastingHours || 0;
+        const currentLog = dailyLogRef.current;
+        let newItems = [...(currentLog.items || [])];
+        let currentFastingMax = currentLog.maxFastingHours || 0;
 
         if (isAdding) {
             const now = Date.now();
@@ -326,9 +348,7 @@ const TrackerApp: React.FC = () => {
             }
         }
 
-        const updatedLog = { ...dailyLog, items: newItems, maxFastingHours: currentFastingMax };
-        setDailyLog(updatedLog);
-        await saveDailyLog(updatedLog);
+        await updateDailyLog((current) => ({ ...current, items: newItems, maxFastingHours: currentFastingMax }));
     };
 
     const handleUpdateWeight = (weight: number) => {
@@ -336,10 +356,10 @@ const TrackerApp: React.FC = () => {
     };
 
     const handleAddWater = async (amount: number) => {
-        const newIntake = (dailyLog.waterIntake || 0) + amount;
-        const updatedLog = { ...dailyLog, waterIntake: newIntake };
-        setDailyLog(updatedLog);
-        await saveDailyLog(updatedLog);
+        await updateDailyLog((current) => ({
+            ...current,
+            waterIntake: (current.waterIntake || 0) + amount
+        }));
         // refreshData is called by saveDailyLog effect usually, but here we update local state immediately
     };
 
@@ -419,12 +439,10 @@ const TrackerApp: React.FC = () => {
         onLogMeal: handleLogMeal,
         onAddFoodLogItems: handleAddFoodLogItems,
         onUpdateFoodItem: async (item: FoodLogItem) => {
-            const updatedLog = {
-                ...dailyLog,
-                items: dailyLog.items.map(i => i.id === item.id ? item : i)
-            };
-            setDailyLog(updatedLog);
-            await saveDailyLog(updatedLog);
+            const updatedLog = await updateDailyLog((current) => ({
+                ...current,
+                items: current.items.map(i => i.id === item.id ? item : i)
+            }));
 
             // Update lastAteTime to the latest food item time
             if (updatedLog.items.length > 0) {
@@ -441,12 +459,10 @@ const TrackerApp: React.FC = () => {
             }
         },
         onDeleteFoodItem: async (itemId: string) => {
-            const updatedLog = {
-                ...dailyLog,
-                items: dailyLog.items.filter(i => i.id !== itemId)
-            };
-            setDailyLog(updatedLog);
-            await saveDailyLog(updatedLog);
+            const updatedLog = await updateDailyLog((current) => ({
+                ...current,
+                items: current.items.filter(i => i.id !== itemId)
+            }));
 
             // Update lastAteTime to the latest food item time (if any remain)
             // If no items remain today, we technically don't know the *previous* lastAteTime (yesterday),

@@ -916,8 +916,11 @@ export const getDailyLog = async (date: string): Promise<DailyLog> => {
 
 export const saveDailyLog = async (log: DailyLog) => {
   // Optimistic Cache
-  saveToCache(getCacheKey('dailyLog', log.date), log);
-  await setDoc(getDocRef('logs', log.date), log);
+  const normalized: DailyLog = { ...log };
+  normalized.workouts = normalized.workouts || [];
+  normalized.waterIntake = typeof normalized.waterIntake === 'number' ? normalized.waterIntake : 0;
+  saveToCache(getCacheKey('dailyLog', normalized.date), normalized);
+  await setDoc(getDocRef('logs', normalized.date), normalized);
 };
 
 // --- Daily Summaries ---
@@ -930,7 +933,7 @@ export const getAllDailySummaries = async (daysBack: number = 90): Promise<Daily
   return getDailySummaries(daysBack);
 };
 
-export const getRecentWorkouts = async (limit: number = 5, daysBack: number = 30): Promise<WorkoutItem[]> => {
+export const getRecentWorkouts = async (limitCount: number = 5, daysBack: number = 30): Promise<WorkoutItem[]> => {
   // Only fetch recent logs to avoid loading all historical data
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() - daysBack);
@@ -939,7 +942,8 @@ export const getRecentWorkouts = async (limit: number = 5, daysBack: number = 30
   const logsQuery = query(
     getCollectionRef('logs'),
     where('date', '>=', cutoffDateString),
-    orderBy('date', 'desc')
+    orderBy('date', 'desc'),
+    limit(limitCount)
   );
 
   const snapshot = await getDocs(logsQuery);
@@ -964,7 +968,7 @@ export const getRecentWorkouts = async (limit: number = 5, daysBack: number = 30
     }
   });
 
-  return Array.from(uniqueWorkouts.values()).slice(0, limit);
+  return Array.from(uniqueWorkouts.values()).slice(0, limitCount);
 };
 
 // ... (Daily Summaries omitted as they are typically historical)
